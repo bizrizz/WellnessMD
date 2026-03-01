@@ -1,0 +1,58 @@
+WellnessMD – React Native Migration TODO
+=========================================
+
+COMPLETED (Full Feature Parity with Swift App)
+-----------------------------------------------
+[x] Expo + TypeScript project scaffold (npm install OK)
+[x] Folder structure: assets, auth, components, navigation, screens, store, supabase
+[x] Zustand app store (auth state, onboarding, user profile)
+[x] Theme system (colors, typography) matching Swift AppTheme
+[x] TypeScript models matching Swift Models.swift
+[x] Mock data for all entities (institutions, activities, posts, events, etc.)
+[x] Supabase client scaffold (auth + postgres ready)
+[x] Auth service scaffold (signIn, signUp, signOut, getSession)
+[x] Root navigation with auth/onboarding gating (matches ContentView logic)
+[x] Custom bottom tab bar with center "Log" button (matches CustomTabBar)
+[x] MoodLogger modal (from tab bar)
+[x] InstitutionalSignInScreen (search, institution cards, sign-in)
+[x] PersonalizationWizardScreen (4-step wizard, role/stressors/goals/frequency)
+[x] WellnessDashboardScreen (score card, quick actions, for-you, weekly chart)
+[x] ActivityGuideScreen (step-by-step timer, play/pause, auto-advance)
+[x] QuickReliefScreen (breathing animation, grounding 5-4-3-2-1, emergency card)
+[x] PeerSupportScreen (category filter, post cards, new post modal)
+[x] WellnessAnalyticsScreen (time range picker, stress chart, interventions)
+[x] InstitutionEventsScreen (calendar grid, month nav, event cards)
+[x] ProfileScreen (achievements, alert settings, preferences, sign-out)
+[x] TypeScript compiles with zero errors
+
+PARITY NOTES (minor visual differences, no functional gaps)
+------------------------------------------------------------
+- Dashboard wellness score: RN uses border-based circular progress; Swift uses Path trim.
+  Fix: add react-native-svg for a proper circular fill indicator.
+- Mood logger: RN uses 7 tappable emoji buttons; Swift uses a continuous Slider.
+  Both work; emoji buttons are arguably better mobile UX.
+- Profile frequency slider: RN uses 5 discrete dot steps; Swift uses continuous Slider.
+- Tab labels: RN "Dashboard/Analytics", Swift "Home/Insights". Same destinations.
+- Icon substitutions: staroflife.fill → hospital-box, calendar.badge.plus → calendar.
+  Semantically equivalent.
+
+REMAINING WORK (Backend + Research Features)
+---------------------------------------------
+[ ] Replace mock auth with real Supabase email/password auth
+[ ] Connect Supabase Postgres tables (profiles, posts, comments, reports, etc.)
+[ ] Add anonymized Participant ID system (P-000001 format per TECHNICAL_PRD)
+[ ] Wire SDK-based analytics (PostHog/Amplitude) with participant_id identification
+[ ] Add push notifications via expo-notifications
+[ ] Add react-native-svg for proper circular progress and line charts
+[ ] Add real image assets (icon.png, splash.png, adaptive-icon.png)
+[ ] Add proper error handling and loading states
+[ ] Add pull-to-refresh on feed screens
+[ ] Add keyboard-aware scroll views for form screens
+[ ] Persist auth state with AsyncStorage + Zustand middleware
+[ ] Add forum report/flag backend integration
+[ ] Add forum moderation flow
+[ ] Add calendar integration for events (expo-calendar)
+[ ] Add haptic feedback on interactions (expo-haptics)
+[ ] Write unit tests for store and auth logic
+[ ] TECHNICAL_PRD specifies Expo Router but implementation uses React Navigation
+    (matches user-requested folder structure; can migrate to Expo Router later)
