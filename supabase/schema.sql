@@ -57,10 +57,11 @@ begin
     coalesce(new.raw_user_meta_data->>'full_name', ''),
     coalesce(new.raw_user_meta_data->>'pgy_year', 'PGY-1'),
     coalesce(new.raw_user_meta_data->>'specialty', 'Internal Medicine')
-  );
+  )
+  on conflict (id) do nothing;
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -231,6 +232,7 @@ alter table user_push_tokens enable row level security;
 
 -- PROFILES
 create policy "Users read own profile"   on profiles for select using (auth.uid() = id);
+create policy "Users insert own profile" on profiles for insert with check (auth.uid() = id);
 create policy "Users update own profile" on profiles for update using (auth.uid() = id);
 
 -- INTERVENTIONS (read-only for all)

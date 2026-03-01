@@ -34,7 +34,7 @@ export async function verifyEmailOtp(email: string, token: string) {
   const { data, error } = await supabase.auth.verifyOtp({
     email,
     token,
-    type: 'email',
+    type: 'magiclink',
   });
   return { data, error };
 }

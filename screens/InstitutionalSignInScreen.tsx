@@ -17,7 +17,7 @@ import { ColorPalette } from '../components/theme/colors';
 import { Typography } from '../components/theme/typography';
 import { PGYYear, PGY_YEARS, Specialty, SPECIALTIES } from '../store/types';
 import { useAppStore } from '../store/appStore';
-import { requestEmailOtp, updateUserProfileMetadata, verifyEmailOtp } from '../auth/authService';
+import { updateUserProfileMetadata, signUpWithEmail, signInWithEmail } from '../auth/authService';
 import { isSupabaseConfigured } from '../supabase/client';
 
 export default function InstitutionalSignInScreen() {
@@ -28,19 +28,20 @@ export default function InstitutionalSignInScreen() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [pgyYear, setPgyYear] = useState<PGYYear>('PGY-1');
   const [specialty, setSpecialty] = useState<Specialty>('Internal Medicine');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusText, setStatusText] = useState('');
 
   const isSignUp = mode === 'signup';
   const normalizedEmail = email.trim().toLowerCase();
-  const isGmail = normalizedEmail.endsWith('@gmail.com');
+  const isValidEmail = normalizedEmail.includes('@') && normalizedEmail.includes('.');
   const hasValidName = fullName.trim().length >= 2;
-  const canContinue = isSignUp ? hasValidName && isGmail : isGmail;
-  const canVerify = canContinue && otpCode.trim().length === 6;
+  const hasPassword = password.length >= 6;
+  const canSubmit = isSignUp
+    ? hasValidName && isValidEmail && hasPassword
+    : isValidEmail && hasPassword;
 
   const handleDevBypass = () => {
     signIn({
@@ -52,41 +53,33 @@ export default function InstitutionalSignInScreen() {
     });
   };
 
-  const handleContinue = async () => {
-    if (!canContinue || isSubmitting) return;
+  const handleSubmit = async () => {
+    if (!canSubmit || isSubmitting) return;
     if (!isSupabaseConfigured) {
       setStatusText('Supabase not configured.');
       return;
     }
     setIsSubmitting(true);
     setStatusText('');
-    const { error } = await requestEmailOtp(normalizedEmail);
-    if (error) {
-      setStatusText(error.message);
-      setIsSubmitting(false);
-      return;
-    }
-    setOtpSent(true);
-    setStatusText('Code sent — enter the 6-digit code from your email.');
-    setIsSubmitting(false);
-  };
 
-  const handleVerifyCode = async () => {
-    if (!canVerify || isSubmitting) return;
-    setIsSubmitting(true);
-    setStatusText('');
-    const { error, data } = await verifyEmailOtp(normalizedEmail, otpCode.trim());
-    if (error) {
-      setStatusText(error.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    const uid = data?.user?.id;
     if (isSignUp) {
+      const { data, error } = await signUpWithEmail(normalizedEmail, password);
+      if (error) {
+        setStatusText(error.message);
+        setIsSubmitting(false);
+        return;
+      }
+      const uid = data?.user?.id;
       await updateUserProfileMetadata({ full_name: fullName.trim(), pgy_year: pgyYear, specialty });
       signIn({ id: uid, name: fullName.trim(), email: normalizedEmail, pgyYear, specialty, institution: null });
     } else {
+      const { data, error } = await signInWithEmail(normalizedEmail, password);
+      if (error) {
+        setStatusText(error.message);
+        setIsSubmitting(false);
+        return;
+      }
+      const uid = data?.user?.id;
       const meta = data?.user?.user_metadata ?? {};
       signIn({
         id: uid,
@@ -102,8 +95,6 @@ export default function InstitutionalSignInScreen() {
 
   const switchMode = () => {
     setMode(isSignUp ? 'signin' : 'signup');
-    setOtpSent(false);
-    setOtpCode('');
     setStatusText('');
   };
 
@@ -139,10 +130,10 @@ export default function InstitutionalSignInScreen() {
               </>
             )}
 
-            <Text style={s.label}>Gmail</Text>
+            <Text style={s.label}>Email</Text>
             <TextInput
               style={s.input}
-              placeholder="you@gmail.com"
+              placeholder="you@email.com"
               placeholderTextColor={c.textMuted}
               value={email}
               onChangeText={setEmail}
@@ -150,7 +141,17 @@ export default function InstitutionalSignInScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {!isGmail && email.length > 0 && <Text style={s.errorText}>Please use a Gmail address.</Text>}
+
+            <Text style={s.label}>Password</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Min 6 characters"
+              placeholderTextColor={c.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
             {/* PGY + Specialty — sign up only */}
             {isSignUp && (
@@ -183,46 +184,25 @@ export default function InstitutionalSignInScreen() {
               </>
             )}
 
-            {otpSent && (
-              <>
-                <Text style={s.label}>Verification code</Text>
-                <TextInput
-                  style={s.input}
-                  placeholder="6-digit code"
-                  placeholderTextColor={c.textMuted}
-                  value={otpCode}
-                  onChangeText={setOtpCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </>
-            )}
-
             {statusText.length > 0 && <Text style={s.statusText}>{statusText}</Text>}
           </View>
 
           {/* Actions */}
           <View style={s.actions}>
             <TouchableOpacity
-              style={[s.primaryBtn, !canContinue && !otpSent && s.primaryBtnDisabled, otpSent && !canVerify && s.primaryBtnDisabled]}
+              style={[s.primaryBtn, !canSubmit && s.primaryBtnDisabled]}
               activeOpacity={0.8}
-              disabled={isSubmitting || !(otpSent ? canVerify : canContinue)}
-              onPress={otpSent ? handleVerifyCode : handleContinue}
+              disabled={isSubmitting || !canSubmit}
+              onPress={handleSubmit}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color={c.background} />
               ) : (
-                <Text style={[s.primaryBtnText, !(otpSent ? canVerify : canContinue) && s.primaryBtnTextDisabled]}>
-                  {otpSent ? 'Verify & Sign In' : isSignUp ? 'Create Account' : 'Sign In'}
+                <Text style={[s.primaryBtnText, !canSubmit && s.primaryBtnTextDisabled]}>
+                  {isSignUp ? 'Create Account' : 'Sign In'}
                 </Text>
               )}
             </TouchableOpacity>
-
-            {otpSent && (
-              <TouchableOpacity onPress={() => { setOtpSent(false); setOtpCode(''); setStatusText(''); }}>
-                <Text style={s.linkText}>Use a different email</Text>
-              </TouchableOpacity>
-            )}
 
             <TouchableOpacity onPress={switchMode} style={s.switchRow}>
               <Text style={s.switchText}>
