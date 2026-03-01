@@ -20,6 +20,7 @@ A wellness app built for medical residents — micro-interventions, community su
 - **Community forum** — anonymous posts, comments, likes, and reporting (all persisted in Supabase)
 - **External resources** — curated mental health, nutrition, spiritual, and institutional support links
 - **Profile management** — edit name, PGY year, specialty, profile photo, notification preferences (synced to Supabase)
+- **Push notifications** — Smart alerts toggle; wellness reminders that open activities when tapped (Expo Push + Supabase)
 - **Dark / Light mode** — full theme support across every screen
 - **Anonymized participant IDs** — `P-000001` format for research compliance; no emails exposed in forum
 
@@ -52,10 +53,17 @@ wellnessapp/
 │   ├── appStore.ts
 │   ├── mockData.ts
 │   └── types.ts
+├── constants/
+│   └── notificationMessages.ts   # Wellness reminder copy for push (24 messages)
+├── utils/
+│   └── pushNotifications.ts     # Register token, request permissions
+├── scripts/
+│   └── send-wellness-push.ts    # Send test push via Expo Push API
 ├── supabase/
 │   ├── client.ts             # Supabase client + isSupabaseConfigured
 │   ├── api.ts                # All backend CRUD functions
-│   └── schema.sql            # Full DB schema + storage RLS (run in SQL Editor)
+│   ├── schema.sql            # Full DB schema + storage RLS (run in SQL Editor)
+│   └── migrations/           # SQL migrations (e.g. smart_alerts_enabled)
 ├── app.json
 ├── package.json
 └── tsconfig.json
@@ -88,11 +96,13 @@ wellnessapp/
    ```
    Fill in your Supabase project URL and anon key.
 
-4. Set up the database — Supabase Dashboard → **SQL Editor** → **New Query** → paste `supabase/schema.sql` → **Run**.
+4. **Push notifications (optional):** Run `npx eas init` to link an EAS project, or add `EXPO_PUBLIC_EAS_PROJECT_ID` to `.env`. The project ID is also in `app.json` → `extra.eas.projectId`.
 
-5. **Profile photos:** Create `avatars` bucket: Dashboard → **Storage** → **New bucket** → name `avatars` → **Public** → Create. The storage policies are already in `schema.sql` (run the full file).
+5. Set up the database — Supabase Dashboard → **SQL Editor** → **New Query** → paste `supabase/schema.sql` → **Run**. Then run `supabase/migrations/20250301000000_add_smart_alerts.sql` for push (adds `smart_alerts_enabled` to profiles).
 
-6. Start the app:
+6. **Profile photos:** Create `avatars` bucket: Dashboard → **Storage** → **New bucket** → name `avatars` → **Public** → Create. The storage policies are already in `schema.sql` (run the full file).
+
+7. Start the app:
    ```bash
    npx expo start
    ```
@@ -145,6 +155,7 @@ Run the full `schema.sql` once in Supabase SQL Editor. It creates tables, RLS, t
 | `reports` | post_id, reporter_id, reason | Insert own only |
 | `resources` | title, category, description, link | Read-only (admin seed) |
 | `user_push_tokens` | user_id, expo_push_token | Own data only |
+| `profiles.smart_alerts_enabled` | boolean (default true) | Toggle in Profile; controls push registration |
 
 **Anonymity:** Forum displays `Resident P-000123` (from `profiles.participant_id`) when `is_anonymous=true`. Never expose email or UUID in UI.
 
@@ -211,12 +222,27 @@ See the "HOW TO EXTEND LATER" block at the end of `schema.sql` for ALTER TABLE a
 
 ---
 
+## Push Notifications
+
+Smart alerts in Profile register the device for push. When enabled, the token is saved to `user_push_tokens`. Tapping a notification opens the linked activity (5-min Breathing, Quick Stretching, or Rapid Reset).
+
+**Test a notification:**
+1. [expo.dev/notifications](https://expo.dev/notifications) — paste token from `user_push_tokens`, add `{"activityId":"a1"}` in Data.
+2. Or: `EXPO_PUSH_TOKENS="ExponentPushToken[xxx]" npx ts-node scripts/send-wellness-push.ts`
+
+**Message library:** `constants/notificationMessages.ts` — 24 wellness messages. Add more or edit for your schedule/cron.
+
+**Note:** Push is unreliable in Expo Go. Use `npx eas build` or `npx expo run:ios` for a dev build for reliable delivery.
+
+---
+
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project UUID (optional; also in `app.json` after `eas init`) |
 
 ## License
 
