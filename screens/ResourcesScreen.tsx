@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '../components/theme/useColors';
 import { ColorPalette } from '../components/theme/colors';
 import { Typography } from '../components/theme/typography';
-import AppCard from '../components/AppCard';
 import { sampleResources } from '../store/mockData';
 import { isSupabaseConfigured } from '../supabase/client';
 import { fetchResources as apiFetchResources } from '../supabase/api';
@@ -43,14 +42,14 @@ function CategoryChip({
   const st = React.useMemo(() => makeStyles(c), [c]);
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-      <View style={[st.chip, { backgroundColor: isSelected ? c.cardDark : c.cardBackground }]}>
-        <Text style={[st.chipText, { color: isSelected ? c.cardDarkText : c.textSecondary }]}>{label}</Text>
+      <View style={[st.chip, st.chipBase, isSelected && st.chipSelected]}>
+        <Text style={[st.chipText, isSelected ? st.chipTextSelected : st.chipTextBase]}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-function ResourceCard({ resource }: { resource: Resource }) {
+function ResourceCard({ resource, isDark }: { resource: Resource; isDark: boolean }) {
   const c = useColors();
   const st = React.useMemo(() => makeStyles(c), [c]);
   const cat = CATEGORY_ICONS[resource.category];
@@ -65,38 +64,25 @@ function ResourceCard({ resource }: { resource: Resource }) {
     }
   };
 
-  const icon = cat.family === 'mci' ? (
-    <MaterialCommunityIcons name={cat.name as any} size={20} color={cat.color} />
-  ) : (
-    <Ionicons name={cat.name as any} size={20} color={cat.color} />
-  );
+  const IconComp = cat.family === 'mci' ? MaterialCommunityIcons : Ionicons;
+  const iconColor = isDark ? c.cardDarkText : c.accent;
 
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={handlePress}>
-      <AppCard style={st.resourceCard}>
-        <View style={st.resourceRow}>
-          <View style={[st.iconWrap, { backgroundColor: `${cat.color}18` }]}>
-            {icon}
+      <View style={[st.resourceBox, { backgroundColor: isDark ? c.cardDark : c.cardPeach }]}>
+        <View style={st.resourceBoxRow}>
+          <View style={st.resourceBoxText}>
+            <Text style={[st.resourceBoxTitle, { color: isDark ? c.cardDarkText : c.textPrimary }]}>{resource.title}</Text>
+            <Text style={[st.resourceBoxDesc, { color: isDark ? 'rgba(255,255,255,0.7)' : c.textSecondary }]} numberOfLines={2}>
+              {resource.description}
+            </Text>
+            <Text style={[st.resourceBoxCta, { color: isDark ? c.cardDarkText : c.accent }]}>Learn more →</Text>
           </View>
-          <View style={st.resourceContent}>
-            <Text style={st.resourceTitle}>{resource.title}</Text>
-            <Text style={st.resourceDesc} numberOfLines={2}>{resource.description}</Text>
-            {(resource.contactInfo || resource.link) && (
-              <View style={st.resourceMeta}>
-                <Ionicons
-                  name={resource.link ? 'link-outline' : 'call-outline'}
-                  size={12}
-                  color={c.accent}
-                />
-                <Text style={st.resourceMetaText} numberOfLines={1}>
-                  {resource.contactInfo ?? resource.link}
-                </Text>
-              </View>
-            )}
+          <View style={[st.resourceBoxIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(107,142,107,0.12)' }]}>
+            <IconComp name={cat.name as any} size={36} color={iconColor} />
           </View>
-          <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
         </View>
-      </AppCard>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -134,44 +120,30 @@ export default function ResourcesScreen() {
 
   return (
     <SafeAreaView style={st.container} edges={['top']}>
-      {/* Header */}
-      <View style={st.header}>
-        <Text style={st.headerTitle}>Resources</Text>
-        <Text style={st.headerSubtitle}>Support when you need it</Text>
-      </View>
+      <ScrollView contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header — same feel as home */}
+        <View style={st.header}>
+          <Text style={st.headerTitle}>Resources</Text>
+          <Text style={st.headerSubtitle}>Support when you need it</Text>
+        </View>
 
-      {/* Category pills */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll} contentContainerStyle={st.chipContainer}>
-        {categories.map((cat) => (
-          <CategoryChip key={cat} label={cat} isSelected={selectedCategory === cat} onPress={() => setSelectedCategory(cat)} />
-        ))}
-      </ScrollView>
+        {/* Category filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll} contentContainerStyle={st.chipContainer}>
+          {categories.map((cat) => (
+            <CategoryChip key={cat} label={cat} isSelected={selectedCategory === cat} onPress={() => setSelectedCategory(cat)} />
+          ))}
+        </ScrollView>
 
-      {/* Resources list */}
-      <ScrollView contentContainerStyle={st.listContainer} showsVerticalScrollIndicator={false}>
-        {RESOURCE_CATEGORIES.filter((cat) => selectedCategory === 'All' || selectedCategory === cat).map((cat) => {
-          const catResources = filtered.filter((r) => r.category === cat);
-          if (catResources.length === 0) return null;
-          return (
-            <View key={cat} style={st.categorySection}>
-              <View style={st.categoryHeader}>
-                {CATEGORY_ICONS[cat].family === 'mci' ? (
-                  <MaterialCommunityIcons name={CATEGORY_ICONS[cat].name as any} size={16} color={CATEGORY_ICONS[cat].color} />
-                ) : (
-                  <Ionicons name={CATEGORY_ICONS[cat].name as any} size={16} color={CATEGORY_ICONS[cat].color} />
-                )}
-                <Text style={st.categoryTitle}>{cat}</Text>
-              </View>
-              {catResources.map((resource) => (
-                <ResourceCard key={resource.id} resource={resource} />
-              ))}
-            </View>
-          );
-        })}
+        {/* Resource cards — home-style boxes */}
+        <View style={st.resourceSection}>
+          {filtered.map((resource, idx) => (
+            <ResourceCard key={resource.id} resource={resource} isDark={idx % 2 === 0} />
+          ))}
+        </View>
 
         {/* Emergency footer */}
         <View style={st.emergencyCard}>
-          <Ionicons name="shield-checkmark-outline" size={20} color={c.cardDarkText} />
+          <Ionicons name="shield-checkmark-outline" size={22} color={c.cardDarkText} />
           <Text style={st.emergencyText}>
             If you or someone you know is in immediate danger, call 911 or your local emergency number.
           </Text>
@@ -186,40 +158,46 @@ export default function ResourcesScreen() {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingBottom: 24 },
 
-    header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 4 },
-    headerTitle: { ...Typography.title, color: c.textPrimary },
-    headerSubtitle: { ...Typography.body, color: c.textSecondary, marginTop: 2 },
+    header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8 },
+    headerTitle: { fontSize: 32, fontWeight: '400', fontFamily: 'Playfair Display', color: c.textPrimary },
+    headerSubtitle: { ...Typography.body, color: c.textSecondary, marginTop: 8, fontFamily: 'Lato', lineHeight: 22 },
 
-    chipScroll: { marginTop: 12, minHeight: 44, maxHeight: 44 },
-    chipContainer: { paddingHorizontal: 24, paddingVertical: 4, gap: 8, alignItems: 'center' as const },
+    chipScroll: { marginTop: 8 },
+    chipContainer: { paddingHorizontal: 24, paddingVertical: 12, paddingRight: 48, gap: 10, alignItems: 'center' as const },
     chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-    chipText: { ...Typography.caption },
+    chipBase: { backgroundColor: c.cardBackground, borderWidth: 1, borderColor: c.cardBorder },
+    chipSelected: { backgroundColor: c.accent, borderColor: c.accent },
+    chipText: { ...Typography.caption, fontFamily: 'Lato' },
+    chipTextBase: { color: c.textSecondary },
+    chipTextSelected: { color: c.cardDarkText },
 
-    listContainer: { paddingHorizontal: 24, paddingTop: 16 },
-
-    categorySection: { marginBottom: 24, gap: 10 },
-    categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    categoryTitle: { ...Typography.caption, color: c.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-
-    resourceCard: { padding: 16 },
-    resourceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    iconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    resourceContent: { flex: 1, gap: 3 },
-    resourceTitle: { ...Typography.subheadline, color: c.textPrimary },
-    resourceDesc: { ...Typography.small, color: c.textSecondary, lineHeight: 18 },
-    resourceMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    resourceMetaText: { ...Typography.small, color: c.accent, flex: 1 },
+    resourceSection: { paddingHorizontal: 24, paddingTop: 20, gap: 12 },
+    resourceBox: { padding: 22, borderRadius: 20 },
+    resourceBoxRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+    resourceBoxText: { flex: 1, gap: 6 },
+    resourceBoxTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Lato', letterSpacing: -0.2 },
+    resourceBoxDesc: { ...Typography.small, fontFamily: 'Lato', lineHeight: 20 },
+    resourceBoxCta: { ...Typography.caption, fontWeight: '600', marginTop: 4, fontFamily: 'Lato' },
+    resourceBoxIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
     emergencyCard: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 10,
-      padding: 16,
+      gap: 12,
+      padding: 20,
       backgroundColor: c.cardDark,
-      borderRadius: 16,
-      marginTop: 8,
+      borderRadius: 20,
+      marginTop: 24,
+      marginHorizontal: 24,
     },
-    emergencyText: { ...Typography.small, color: c.cardDarkText, flex: 1, lineHeight: 18 },
+    emergencyText: { ...Typography.body, color: c.cardDarkText, flex: 1, lineHeight: 22, fontFamily: 'Lato' },
   });
 }

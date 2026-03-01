@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Animated,
   Easing,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +22,7 @@ import { Typography } from '../components/theme/typography';
 import { WellnessActivity, ActivityCategoryColors } from '../store/types';
 import { sampleActivities } from '../store/mockData';
 import { useAppStore } from '../store/appStore';
+import { signOut as signOutSupabase } from '../auth/authService';
 import AppCard from '../components/AppCard';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -43,6 +46,16 @@ const MOODS: { label: string; icon: 'happy' | 'calm' | 'relax' | 'focus' }[] = [
   { label: 'Relax', icon: 'relax' },
   { label: 'Focus', icon: 'focus' },
 ];
+
+function HamburgerIcon({ color }: { color: string }) {
+  return (
+    <View style={{ width: 24, height: 18, justifyContent: 'space-between' }}>
+      <View style={{ height: 2, borderRadius: 1, backgroundColor: color, width: 18 }} />
+      <View style={{ height: 2, borderRadius: 1, backgroundColor: color, width: 24 }} />
+      <View style={{ height: 2, borderRadius: 1, backgroundColor: color, width: 18 }} />
+    </View>
+  );
+}
 
 function MoodIcon({
   name,
@@ -76,7 +89,24 @@ export default function WellnessDashboardScreen() {
   const hydrateMoodLogs = useAppStore((s) => s.hydrateMoodLogs);
   const logMoodStore = useAppStore((s) => s.logMood);
   const moodLogs = useAppStore((s) => s.moodLogs);
+  const signOutStore = useAppStore((s) => s.signOut);
+  const isDarkMode = useAppStore((s) => s.isDarkMode);
+  const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
+  const [menuVisible, setMenuVisible] = useState(false);
   const userName = currentUser?.name ?? 'there';
+
+  const handleSignOut = async () => {
+    setMenuVisible(false);
+    await signOutSupabase();
+    signOutStore();
+  };
+
+  const menuItems: { screen: keyof MainTabParamList; icon: string; label: string }[] = [
+    { screen: 'Dashboard', icon: 'home', label: 'Home' },
+    { screen: 'Resources', icon: 'book', label: 'Resources' },
+    { screen: 'Community', icon: 'people', label: 'Community' },
+    { screen: 'Profile', icon: 'person', label: 'Profile' },
+  ];
 
   const isMoodLoggedToday = () => {
     const today = new Date();
@@ -193,25 +223,50 @@ export default function WellnessDashboardScreen() {
     <SafeAreaView style={s.container} edges={['top']}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
+        {/* Header — hamburger left, small profile pic right, greeting below */}
         <View style={s.header}>
-          <View style={s.headerLeft}>
+          <View style={s.headerTopRow}>
+            <TouchableOpacity onPress={() => setMenuVisible(true)} style={s.menuBtn} activeOpacity={0.7}>
+              <HamburgerIcon color={c.textPrimary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')} activeOpacity={0.8}>
+              <View style={s.avatarCircle}>
+                <Text style={s.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+                {currentUser?.avatarUrl ? (
+                  <Image source={{ uri: currentUser.avatarUrl }} style={s.avatarImage} contentFit="cover" transition={200} />
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          </View>
+          <Modal visible={menuVisible} transparent animationType="fade">
+            <Pressable style={s.menuOverlay} onPress={() => setMenuVisible(false)}>
+              <Pressable style={s.menuPanel} onPress={(e) => e.stopPropagation()}>
+                {menuItems.map((item) => (
+                  <TouchableOpacity
+                    key={item.screen}
+                    style={s.menuItem}
+                    onPress={() => { setMenuVisible(false); navigation.navigate(item.screen); }}
+                  >
+                    <Ionicons name={item.icon as any} size={22} color={c.textPrimary} />
+                    <Text style={s.menuItemText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <View style={s.menuDivider} />
+                <TouchableOpacity style={s.menuItem} onPress={() => { toggleDarkMode(); setMenuVisible(false); }}>
+                  <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={22} color={c.textPrimary} />
+                  <Text style={s.menuItemText}>{isDarkMode ? 'Light mode' : 'Dark mode'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.menuItem} onPress={handleSignOut}>
+                  <Ionicons name="log-out-outline" size={22} color={c.textPrimary} />
+                  <Text style={s.menuItemText}>Sign out</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </Modal>
+          <View style={s.headerGreetingBlock}>
             <Text style={s.greeting}>{timeGreeting}, <Text style={s.greetingBold}>{firstName}!</Text></Text>
             {!showMoodSection && <Text style={s.greetingSub}>{greetingSubtext}</Text>}
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={s.avatarCircle}>
-              <Text style={s.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
-              {currentUser?.avatarUrl ? (
-                <Image
-                  source={{ uri: currentUser.avatarUrl }}
-                  style={s.avatarImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : null}
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* Mood row — once per day, fades out after selection */}
@@ -288,7 +343,7 @@ export default function WellnessDashboardScreen() {
           })}
         </View>
 
-        {/* Resources shortcut */}
+        {/* Resources shortcut — boxes like Today's Task */}
         <View style={s.section}>
           <View style={s.sectionHeaderRow}>
             <Text style={s.sectionTitle}>Resources</Text>
@@ -296,14 +351,24 @@ export default function WellnessDashboardScreen() {
               <Text style={s.seeAll}>See all</Text>
             </TouchableOpacity>
           </View>
-          <View style={s.resourceChips}>
-            {RESOURCE_HIGHLIGHTS.map((r) => (
-              <TouchableOpacity key={r.label} activeOpacity={0.7} onPress={() => navigation.navigate('Resources')} style={s.resourceChip}>
-                <Ionicons name={r.icon as any} size={16} color={c.accent} />
-                <Text style={s.resourceChipText}>{r.label}</Text>
+          {RESOURCE_HIGHLIGHTS.map((r, idx) => {
+            const isDark = idx % 2 === 0;
+            return (
+              <TouchableOpacity key={r.label} activeOpacity={0.7} onPress={() => navigation.navigate('Resources')}>
+                <View style={[s.resourceCard, { backgroundColor: isDark ? c.cardDark : c.cardPeach }]}>
+                  <View style={s.resourceCardRow}>
+                    <View style={s.resourceCardText}>
+                      <Text style={[s.resourceCardTitle, { color: isDark ? c.cardDarkText : c.textPrimary }]}>{r.label}</Text>
+                      <Text style={[s.resourceCardCta, { color: isDark ? c.cardDarkText : c.accent }]}>Browse →</Text>
+                    </View>
+                    <View style={[s.resourceCardIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(107,142,107,0.12)' }]}>
+                      <Ionicons name={r.icon as any} size={32} color={isDark ? c.cardDarkText : c.accent} />
+                    </View>
+                  </View>
+                </View>
               </TouchableOpacity>
-            ))}
-          </View>
+            );
+          })}
         </View>
 
         <View style={{ height: 100 }} />
@@ -315,27 +380,34 @@ export default function WellnessDashboardScreen() {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 24, paddingTop: 16 },
+    scroll: { paddingHorizontal: 24, paddingTop: 20 },
 
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    headerLeft: { flex: 1 },
-    greeting: { ...Typography.title, color: c.textPrimary, fontWeight: '400' },
-    greetingBold: { fontWeight: '700' },
-    greetingSub: { ...Typography.body, fontSize: 14, color: c.textSecondary, marginTop: 4, fontFamily: 'Lato' },
-    subGreeting: { ...Typography.body, color: c.textSecondary, marginBottom: 12 },
+    header: { marginBottom: 28 },
+    headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+    menuBtn: { padding: 6 },
     avatarCircle: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       backgroundColor: c.cardDark,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden' as const,
     },
-    avatarText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
-    avatarImage: { position: 'absolute', width: 44, height: 44, borderRadius: 22 },
+    avatarText: { ...Typography.caption, color: c.cardDarkText, fontWeight: '600', fontFamily: 'Lato' },
+    avatarImage: { position: 'absolute', width: 38, height: 38, borderRadius: 19 },
+    menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-start', paddingTop: 60, paddingLeft: 16 },
+    menuPanel: { backgroundColor: c.background, borderRadius: 16, paddingVertical: 8, paddingHorizontal: 4, maxWidth: 280 },
+    menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 12 },
+    menuItemText: { ...Typography.body, color: c.textPrimary, fontFamily: 'Lato' },
+    menuDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 4 },
+    headerGreetingBlock: { gap: 8 },
+    greeting: { fontSize: 32, lineHeight: 40, color: c.textPrimary, fontWeight: '400', fontFamily: 'Playfair Display' },
+    greetingBold: { fontWeight: '700' },
+    greetingSub: { ...Typography.body, fontSize: 15, color: c.textSecondary, marginTop: 4, fontFamily: 'Lato', lineHeight: 22 },
+    subGreeting: { ...Typography.body, fontSize: 16, color: c.textSecondary, marginBottom: 16, fontFamily: 'Lato' },
 
-    moodSection: { marginBottom: 24 },
+    moodSection: { marginTop: 8, marginBottom: 28 },
     moodRow: { gap: 16, paddingVertical: 4 },
     moodItem: { alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
     moodItemSelected: {},
@@ -363,9 +435,9 @@ function makeStyles(c: ColorPalette) {
     moodLabelSelected: { color: c.textPrimary },
 
     section: { marginBottom: 28, gap: 12 },
-    sectionTitle: { fontSize: 18, fontWeight: '600', color: c.textPrimary, fontFamily: 'Lato' },
+    sectionTitle: { fontSize: 18, fontWeight: '600', color: c.textPrimary, fontFamily: 'Lato', letterSpacing: -0.2 },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    seeAll: { ...Typography.caption, color: c.accent },
+    seeAll: { ...Typography.caption, color: c.accent, fontFamily: 'Lato' },
 
     interventionCard: { padding: 22, borderRadius: 20 },
     interventionRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
@@ -377,23 +449,21 @@ function makeStyles(c: ColorPalette) {
       justifyContent: 'center',
     },
     interventionText: { flex: 1, gap: 4 },
-    interventionTitle: { ...Typography.subheadline, fontWeight: '600' },
-    interventionMeta: { ...Typography.small },
-    interventionCta: { ...Typography.caption, fontWeight: '600', marginTop: 4 },
+    interventionTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Lato', letterSpacing: -0.2 },
+    interventionMeta: { ...Typography.small, fontFamily: 'Lato' },
+    interventionCta: { ...Typography.caption, fontWeight: '600', marginTop: 4, fontFamily: 'Lato' },
 
-    resourceChips: { flexDirection: 'row', gap: 10 },
-    resourceChip: {
-      flex: 1,
-      flexDirection: 'row',
+    resourceCard: { padding: 20, borderRadius: 20 },
+    resourceCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    resourceCardText: { flex: 1, gap: 6 },
+    resourceCardTitle: { fontSize: 17, fontWeight: '600', fontFamily: 'Lato' },
+    resourceCardCta: { ...Typography.caption, fontWeight: '600', fontFamily: 'Lato' },
+    resourceCardIcon: {
+      width: 56,
+      height: 56,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 14,
-      backgroundColor: c.cardBackground,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
     },
-    resourceChipText: { ...Typography.small, color: c.textSecondary },
   });
 }

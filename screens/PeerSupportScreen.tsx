@@ -52,8 +52,8 @@ function CategoryPill({ category, isSelected, onPress }: { category: PostCategor
   const st = React.useMemo(() => makeStyles(c), [c]);
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-      <View style={[st.pill, { backgroundColor: isSelected ? c.cardDark : c.cardBackground }]}>
-        <Text style={[st.pillText, { color: isSelected ? c.cardDarkText : c.textSecondary }]}>{category}</Text>
+      <View style={[st.pill, st.pillBase, isSelected && st.pillSelected]}>
+        <Text style={[st.pillText, isSelected ? st.pillTextSelected : st.pillTextBase]}>{category}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -82,8 +82,8 @@ function PostCard({
     <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
       <View style={st.postCard}>
         {post.imageUrl && (
-          <View style={[st.postImage, { backgroundColor: `${categoryColor}12` }]}>
-            <Ionicons name="image-outline" size={32} color={`${categoryColor}50`} />
+          <View style={[st.postImage, { backgroundColor: `${categoryColor}18` }]}>
+            <Ionicons name="image-outline" size={32} color={`${categoryColor}80`} />
           </View>
         )}
 
@@ -518,12 +518,12 @@ export default function PeerSupportScreen() {
 
   return (
     <SafeAreaView style={st.container} edges={['top']}>
-      {/* Header */}
+      {/* Header — same vibe as home/resources */}
       <View style={st.header}>
         <View style={{ width: 22 }} />
         <View style={st.headerCenter}>
           <Text style={st.headerTitle}>Community</Text>
-          <Text style={st.headerSubtitle}>MODERATED FORUM</Text>
+          <Text style={st.headerSubtitle}>Connect with peers</Text>
         </View>
         <TouchableOpacity onPress={() => setShowSearch((v) => !v)} hitSlop={8}>
           <Ionicons name={showSearch ? 'close' : 'search'} size={20} color={c.textSecondary} />
@@ -551,15 +551,17 @@ export default function PeerSupportScreen() {
         </View>
       )}
 
-      {/* Category pills */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.pillScroll} contentContainerStyle={st.pillContainer}>
-        {POST_CATEGORIES.map((cat) => (
-          <CategoryPill key={cat} category={cat} isSelected={selectedCategory === cat} onPress={() => setSelectedCategory(cat)} />
-        ))}
-      </ScrollView>
+      {/* Pills + Posts in one scroll */}
+      <ScrollView contentContainerStyle={st.mainScroll} showsVerticalScrollIndicator={false}>
+        <View style={st.pillWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.pillContainer}>
+            {POST_CATEGORIES.map((cat) => (
+              <CategoryPill key={cat} category={cat} isSelected={selectedCategory === cat} onPress={() => setSelectedCategory(cat)} />
+            ))}
+          </ScrollView>
+        </View>
 
-      {/* Posts */}
-      <ScrollView contentContainerStyle={st.postsContainer} showsVerticalScrollIndicator={false}>
+        <View style={st.postsWrapper}>
         {loading && (
           <View style={st.emptyState}>
             <ActivityIndicator size="small" color={c.accent} />
@@ -571,7 +573,7 @@ export default function PeerSupportScreen() {
             <Text style={st.emptyText}>{searchQuery.length > 0 ? 'No posts match your search.' : 'No posts yet. Be the first!'}</Text>
           </View>
         )}
-        {filteredPosts.map((post) => (
+          {filteredPosts.map((post) => (
           <PostCard
             key={post.id}
             post={post}
@@ -581,7 +583,8 @@ export default function PeerSupportScreen() {
             onReply={() => setDetailPostId(post.id)}
             onPress={() => setDetailPostId(post.id)}
           />
-        ))}
+          ))}
+        </View>
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -614,11 +617,12 @@ function makeStyles(c: ColorPalette) {
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 24,
-      paddingVertical: 12,
+      paddingTop: 20,
+      paddingBottom: 8,
     },
     headerCenter: { alignItems: 'center' },
-    headerTitle: { ...Typography.subheadline, color: c.textPrimary },
-    headerSubtitle: { fontSize: 10, fontWeight: '500', color: c.textMuted, letterSpacing: 1, marginTop: 2, fontFamily: 'Lato' },
+    headerTitle: { fontSize: 32, fontWeight: '400', fontFamily: 'Playfair Display', color: c.textPrimary },
+    headerSubtitle: { ...Typography.body, fontSize: 15, color: c.textSecondary, marginTop: 6, fontFamily: 'Lato' },
 
     searchBar: {
       flexDirection: 'row',
@@ -635,34 +639,39 @@ function makeStyles(c: ColorPalette) {
     },
     searchInput: { flex: 1, ...Typography.body, color: c.textPrimary, padding: 0 },
 
-    pillScroll: { minHeight: 44, maxHeight: 44 },
-    pillContainer: { paddingHorizontal: 24, paddingVertical: 4, gap: 8, alignItems: 'center' as const },
-    pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-    pillText: { ...Typography.caption },
+    mainScroll: { paddingBottom: 24 },
+    pillWrap: { marginTop: 4, minHeight: 50 },
+    pillContainer: { paddingHorizontal: 24, paddingVertical: 12, paddingRight: 48, gap: 10, alignItems: 'center' as const },
+    pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, flexShrink: 0 },
+    pillBase: { backgroundColor: c.cardBackground, borderWidth: 1, borderColor: c.cardBorder },
+    pillSelected: { backgroundColor: c.accent, borderColor: c.accent },
+    pillText: { ...Typography.caption, fontFamily: 'Lato' },
+    pillTextBase: { color: c.textSecondary },
+    pillTextSelected: { color: c.cardDarkText },
     pillRow: { flexDirection: 'row', gap: 8 },
 
-    postsContainer: { padding: 24, gap: 16 },
+    postsWrapper: { paddingHorizontal: 24, paddingTop: 4, gap: 16 },
 
     emptyState: { alignItems: 'center', paddingTop: 60, gap: 12 },
     emptyText: { ...Typography.body, color: c.textMuted, textAlign: 'center' },
 
-    postCard: { backgroundColor: c.cardBackground, borderRadius: 18, overflow: 'hidden' },
+    postCard: { backgroundColor: c.cardBackground, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden' },
     postImage: { height: 110, justifyContent: 'center', alignItems: 'center' },
-    postBody: { padding: 16, gap: 10 },
+    postBody: { padding: 20, gap: 10 },
     categoryLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, fontFamily: 'Lato' },
     titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-    postTitle: { ...Typography.subheadline, color: c.textPrimary, flex: 1 },
+    postTitle: { fontSize: 17, fontWeight: '600', fontFamily: 'Lato', color: c.textPrimary, flex: 1 },
     authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    authorText: { ...Typography.small, color: c.textSecondary },
+    authorText: { ...Typography.small, color: c.textSecondary, fontFamily: 'Lato' },
     dot: { color: c.textMuted },
     timeText: { ...Typography.small, color: c.textMuted },
-    contentPreview: { ...Typography.body, color: c.textSecondary },
+    contentPreview: { ...Typography.body, fontFamily: 'Lato', color: c.textSecondary, lineHeight: 22 },
     actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 2 },
     actionGroup: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    actionCount: { ...Typography.small, color: c.textMuted },
+    actionCount: { ...Typography.small, color: c.textMuted, fontFamily: 'Lato' },
     actionSpacer: { flex: 1 },
     commentButton: { backgroundColor: c.cardPeach, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12 },
-    commentButtonText: { ...Typography.small, color: c.accent, fontWeight: '600' },
+    commentButtonText: { ...Typography.small, color: c.accent, fontWeight: '600', fontFamily: 'Lato' },
 
     fab: {
       position: 'absolute',
@@ -685,26 +694,26 @@ function makeStyles(c: ColorPalette) {
     modalContainer: { flex: 1, backgroundColor: c.background },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
     cancelText: { ...Typography.body, color: c.accent },
-    modalTitle: { ...Typography.subheadline, color: c.textPrimary },
+    modalTitle: { fontSize: 18, fontWeight: '600', fontFamily: 'Lato', color: c.textPrimary },
     modalContent: { padding: 24, gap: 20 },
     toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     toggleLabel: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     toggleText: { ...Typography.body, color: c.textPrimary },
     fieldGroup: { gap: 8 },
-    fieldLabel: { ...Typography.caption, color: c.textMuted },
+    fieldLabel: { ...Typography.caption, color: c.textMuted, fontFamily: 'Lato' },
     textInput: { ...Typography.body, color: c.textPrimary, padding: 14, backgroundColor: c.cardBackground, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder },
     textArea: { height: 150, textAlignVertical: 'top', paddingTop: 12 },
     submitButton: { backgroundColor: c.cardDark, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
     submitButtonDisabled: { backgroundColor: c.cardBorder },
-    submitButtonText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
+    submitButtonText: { ...Typography.subheadline, fontFamily: 'Lato', color: c.cardDarkText, fontWeight: '600' },
 
     // Post Detail Modal
     detailContainer: { flex: 1, backgroundColor: c.background },
     detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
-    detailHeaderTitle: { ...Typography.subheadline, color: c.textPrimary },
+    detailHeaderTitle: { fontSize: 18, fontWeight: '600', fontFamily: 'Lato', color: c.textPrimary },
     detailScroll: { paddingHorizontal: 24, paddingTop: 8 },
-    detailTitle: { ...Typography.headline, color: c.textPrimary, marginTop: 6, marginBottom: 8 },
-    detailContent: { ...Typography.body, color: c.textSecondary, lineHeight: 22, marginTop: 12 },
+    detailTitle: { fontSize: 20, fontWeight: '600', fontFamily: 'Lato', color: c.textPrimary, marginTop: 6, marginBottom: 8 },
+    detailContent: { ...Typography.body, fontFamily: 'Lato', color: c.textSecondary, lineHeight: 22, marginTop: 12 },
     detailActions: { flexDirection: 'row', gap: 24, marginTop: 20, paddingVertical: 12 },
     divider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 4 },
     commentsHeader: { ...Typography.caption, color: c.textMuted, marginTop: 12, marginBottom: 8 },
