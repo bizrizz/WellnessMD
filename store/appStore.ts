@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { User, Institution, PGYYear, Specialty, ActivityLog, ActivityCategory } from './types';
+import { User, Institution, PGYYear, Specialty, ActivityLog, ActivityCategory, MoodLog, MoodValue } from './types';
 
 interface QuickSignInPayload {
   id?: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
   pgyYear?: PGYYear;
   specialty?: Specialty;
   institution?: Institution | null;
@@ -16,14 +17,18 @@ interface AppState {
   currentUser: User | null;
   selectedInstitution: Institution | null;
   activityLogs: ActivityLog[];
+  moodLogs: MoodLog[];
   isDarkMode: boolean;
 
   signIn: (payload: QuickSignInPayload) => void;
   updateCurrentUserName: (name: string) => void;
   updateCurrentUserPGY: (pgyYear: PGYYear) => void;
   updateCurrentUserSpecialty: (specialty: Specialty) => void;
+  updateAvatarUrl: (url: string | null) => void;
   logActivity: (activityId: string, activityTitle: string, category: ActivityCategory, durationMinutes: number) => void;
   hydrateActivityLogs: (logs: ActivityLog[]) => void;
+  logMood: (mood: MoodValue) => void;
+  hydrateMoodLogs: (logs: MoodLog[]) => void;
   toggleDarkMode: () => void;
   signOut: () => void;
 }
@@ -34,9 +39,10 @@ export const useAppStore = create<AppState>((set) => ({
   currentUser: null,
   selectedInstitution: null,
   activityLogs: [],
+  moodLogs: [],
   isDarkMode: true,
 
-  signIn: ({ id, name, email, pgyYear = 'PGY-1', specialty = 'Internal Medicine', institution = null }) =>
+  signIn: ({ id, name, email, pgyYear = 'PGY-1', specialty = 'Internal Medicine', institution = null, avatarUrl }) =>
     set({
       selectedInstitution: institution,
       isAuthenticated: true,
@@ -44,6 +50,7 @@ export const useAppStore = create<AppState>((set) => ({
       currentUser: {
         id: id ?? `local-${Date.now()}`,
         name: name.trim(),
+        avatarUrl: avatarUrl ?? null,
         role: 'resident',
         pgyYear,
         specialty,
@@ -73,6 +80,12 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => {
       if (!state.currentUser) return state;
       return { currentUser: { ...state.currentUser, specialty } };
+    }),
+
+  updateAvatarUrl: (avatarUrl) =>
+    set((state) => {
+      if (!state.currentUser) return state;
+      return { currentUser: { ...state.currentUser, avatarUrl } };
     }),
 
   logActivity: (activityId, activityTitle, category, durationMinutes) =>
@@ -128,6 +141,18 @@ export const useAppStore = create<AppState>((set) => ({
       };
     }),
 
+  logMood: (mood) =>
+    set((state) => {
+      const log: MoodLog = {
+        id: `mood-${Date.now()}`,
+        mood,
+        loggedAt: new Date(),
+      };
+      return { moodLogs: [log, ...state.moodLogs] };
+    }),
+
+  hydrateMoodLogs: (logs) => set({ moodLogs: logs }),
+
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
 
   signOut: () =>
@@ -137,5 +162,6 @@ export const useAppStore = create<AppState>((set) => ({
       currentUser: null,
       selectedInstitution: null,
       activityLogs: [],
+      moodLogs: [],
     }),
 }));

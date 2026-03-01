@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './client';
+import type { MoodValue } from '../store/types';
 
 // ===== PROFILES =====
 
@@ -21,6 +22,68 @@ export async function updateProfile(userId: string, updates: Record<string, unkn
     .select()
     .single();
   return { data, error };
+}
+
+/** Update avatar_url; uses upsert so profile is created if missing (e.g. user signed up before trigger). */
+export async function updateProfileAvatar(userId: string, avatarUrl: string) {
+  if (!isSupabaseConfigured) return { data: null, error: null };
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert({ id: userId, avatar_url: avatarUrl }, { onConflict: 'id' })
+    .select()
+    .single();
+  return { data, error };
+}
+
+const BUCKET_MISSING_MESSAGE =
+  'Create an "avatars" bucket: Supabase Dashboard → Storage → New bucket → name "avatars" → Public → Create.';
+
+/** Decode base64 to ArrayBuffer (avoids fetch(file://) which fails in React Native). */
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/** Upload avatar to Supabase Storage. Use base64 for reliability on React Native (file:// fetch fails). */
+export async function uploadAvatar(
+  userId: string,
+  source: { uri: string } | { base64: string },
+): Promise<{ url: string | null; error: unknown }> {
+  if (!isSupabaseConfigured) return { url: null, error: null };
+  const path = `${userId}/avatar.jpg`;
+
+  await supabase.storage.createBucket('avatars', { public: true }).catch(() => {});
+
+  try {
+    let body: ArrayBuffer | Blob;
+    if ('base64' in source && source.base64) {
+      body = base64ToArrayBuffer(source.base64);
+    } else {
+      const response = await fetch(source.uri);
+      body = await response.blob();
+    }
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, body, { upsert: true, contentType: 'image/jpeg' });
+
+    if (uploadError) {
+      const msg = String(uploadError.message || '').toLowerCase();
+      if (msg.includes('bucket') || msg.includes('not found') || msg.includes('does not exist')) {
+        return { url: null, error: new Error(BUCKET_MISSING_MESSAGE) };
+      }
+      return { url: null, error: uploadError };
+    }
+
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(uploadData.path);
+    const url = urlData?.publicUrl ?? null;
+    // Append cache-bust so re-uploads display immediately
+    return { url: url ? `${url}?t=${Date.now()}` : null, error: null };
+  } catch (e) {
+    return { url: null, error: e };
+  }
 }
 
 // ===== POSTS =====
@@ -257,6 +320,50 @@ export async function fetchActivityLogs(userId: string) {
     .eq('user_id', userId)
     .order('completed_at', { ascending: false });
   return { data: data ?? [], error };
+}
+
+// ===== MOOD LOGS =====
+
+export async function logMood(userId: string, mood: MoodValue) {
+  if (!isSupabaseConfigured) return { data: null, error: null };
+  const { data, error } = await supabase
+    .from('mood_logs')
+    .insert({ user_id: userId, mood })
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function fetchMoodLogs(userId: string, limit = 100) {
+  if (!isSupabaseConfigured) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from('mood_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('logged_at', { ascending: false })
+    .limit(limit);
+  return { data: data ?? [], error };
+}
+
+/** Returns most recent mood logged today, or null if none. */
+export async function fetchTodaysMood(userId: string): Promise<{ mood: MoodValue | null; error: unknown }> {
+  if (!isSupabaseConfigured) return { mood: null, error: null };
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+  const { data, error } = await supabase
+    .from('mood_logs')
+    .select('mood')
+    .eq('user_id', userId)
+    .gte('logged_at', startOfDay)
+    .lt('logged_at', endOfDay)
+    .order('logged_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return { mood: null, error };
+  return { mood: data.mood as MoodValue, error: null };
 }
 
 // ===== RESOURCES =====

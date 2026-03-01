@@ -13,9 +13,9 @@ export default function AppCard({ filled = true, children, style }: AppCardProps
   return (
     <View
       style={[
-        { borderRadius: 14, overflow: 'hidden' as const },
+        { borderRadius: 16, overflow: 'hidden' as const },
         filled
-          ? { backgroundColor: c.cardBackground }
+          ? { backgroundColor: c.cardBackground, borderWidth: 1, borderColor: c.cardBorder }
           : { backgroundColor: 'transparent', borderWidth: 1, borderColor: c.cardBorder },
         style,
       ]}
@@ -36,7 +36,7 @@ export function SelectionCard({ isSelected, children, style }: SelectionCardProp
   return (
     <View
       style={[
-        { borderRadius: 14, overflow: 'hidden' as const, backgroundColor: c.cardBackground },
+        { borderRadius: 16, overflow: 'hidden' as const, backgroundColor: c.cardBackground },
         { borderWidth: isSelected ? 1.5 : 1, borderColor: isSelected ? c.accent : c.cardBorder },
         style,
       ]}

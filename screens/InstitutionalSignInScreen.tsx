@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../components/theme/useColors';
 import { ColorPalette } from '../components/theme/colors';
 import { Typography } from '../components/theme/typography';
@@ -19,6 +18,7 @@ import { PGYYear, PGY_YEARS, Specialty, SPECIALTIES } from '../store/types';
 import { useAppStore } from '../store/appStore';
 import { updateUserProfileMetadata, signUpWithEmail, signInWithEmail } from '../auth/authService';
 import { isSupabaseConfigured } from '../supabase/client';
+import { fetchProfile } from '../supabase/api';
 
 export default function InstitutionalSignInScreen() {
   const c = useColors();
@@ -71,7 +71,16 @@ export default function InstitutionalSignInScreen() {
       }
       const uid = data?.user?.id;
       await updateUserProfileMetadata({ full_name: fullName.trim(), pgy_year: pgyYear, specialty });
-      signIn({ id: uid, name: fullName.trim(), email: normalizedEmail, pgyYear, specialty, institution: null });
+      const { data: profile } = await fetchProfile(uid ?? '');
+      signIn({
+        id: uid,
+        name: fullName.trim(),
+        email: normalizedEmail,
+        pgyYear,
+        specialty,
+        institution: null,
+        avatarUrl: profile?.avatar_url ?? null,
+      });
     } else {
       const { data, error } = await signInWithEmail(normalizedEmail, password);
       if (error) {
@@ -81,13 +90,15 @@ export default function InstitutionalSignInScreen() {
       }
       const uid = data?.user?.id;
       const meta = data?.user?.user_metadata ?? {};
+      const { data: profile } = await fetchProfile(uid ?? '');
       signIn({
         id: uid,
-        name: typeof meta.full_name === 'string' ? meta.full_name : 'Wellness User',
+        name: typeof meta.full_name === 'string' ? meta.full_name : (profile?.full_name ?? 'Wellness User'),
         email: data?.user?.email ?? normalizedEmail,
-        pgyYear: meta.pgy_year ?? 'PGY-1',
-        specialty: meta.specialty ?? 'Internal Medicine',
+        pgyYear: meta.pgy_year ?? profile?.pgy_year ?? 'PGY-1',
+        specialty: meta.specialty ?? profile?.specialty ?? 'Internal Medicine',
         institution: null,
+        avatarUrl: profile?.avatar_url ?? null,
       });
     }
     setIsSubmitting(false);
@@ -105,9 +116,11 @@ export default function InstitutionalSignInScreen() {
 
           {/* Welcome */}
           <View style={s.welcomeBlock}>
-            <Text style={s.welcomeTitle}>WellnessMD</Text>
+            <Text style={s.welcomeTitle}>
+              {isSignUp ? "Let's get started" : 'Welcome back'}
+            </Text>
             <Text style={s.welcomeSub}>
-              {isSignUp ? 'Create your account' : 'Welcome back'}
+              {isSignUp ? 'Create your account to track your wellness journey' : 'Sign in to pick up where you left off'}
             </Text>
           </View>
 
@@ -196,7 +209,7 @@ export default function InstitutionalSignInScreen() {
               onPress={handleSubmit}
             >
               {isSubmitting ? (
-                <ActivityIndicator size="small" color={c.background} />
+                <ActivityIndicator size="small" color={c.cardDarkText} />
               ) : (
                 <Text style={[s.primaryBtnText, !canSubmit && s.primaryBtnTextDisabled]}>
                   {isSignUp ? 'Create Account' : 'Sign In'}
@@ -230,47 +243,51 @@ function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     flex: { flex: 1 },
-    scroll: { paddingHorizontal: 24, paddingBottom: 40 },
+    scroll: { paddingHorizontal: 28, paddingBottom: 40 },
 
-    welcomeBlock: { marginTop: 48, marginBottom: 36 },
-    welcomeTitle: { ...Typography.title, color: c.textPrimary, marginBottom: 6 },
-    welcomeSub: { ...Typography.body, color: c.textSecondary },
+    welcomeBlock: { marginTop: 56, marginBottom: 40, alignItems: 'center' },
+    welcomeTitle: { fontSize: 28, fontWeight: '600', color: c.textPrimary, letterSpacing: -0.3, fontFamily: 'Playfair Display', marginBottom: 8 },
+    welcomeSub: { ...Typography.body, fontSize: 15, color: c.textSecondary, lineHeight: 22, textAlign: 'center', fontFamily: 'Lato', maxWidth: 280 },
 
     formBlock: { gap: 8 },
-    label: { ...Typography.caption, color: c.textMuted, marginTop: 10 },
+    label: { ...Typography.caption, color: c.textMuted, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
     input: {
       ...Typography.body,
       color: c.textPrimary,
       backgroundColor: c.cardBackground,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
     },
     errorText: { ...Typography.small, color: c.urgentRed },
-    statusText: { ...Typography.small, color: c.textSecondary, marginTop: 4 },
+    statusText: { ...Typography.small, color: c.urgentRed, marginTop: 4 },
 
     chipRow: { gap: 8, paddingVertical: 4 },
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
     chip: {
       paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 8,
+      paddingVertical: 10,
+      borderRadius: 12,
       backgroundColor: c.cardBackground,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
     },
-    chipSelected: { backgroundColor: c.accentGlow },
+    chipSelected: { backgroundColor: c.cardDark, borderColor: c.cardDark },
     chipText: { ...Typography.caption, color: c.textMuted },
-    chipTextSelected: { color: c.accent },
+    chipTextSelected: { color: c.cardDarkText },
 
-    actions: { marginTop: 28, gap: 12, alignItems: 'center' },
+    actions: { marginTop: 32, gap: 14, alignItems: 'center' },
     primaryBtn: {
       width: '100%',
       alignItems: 'center',
-      paddingVertical: 15,
-      borderRadius: 10,
-      backgroundColor: c.accent,
+      paddingVertical: 16,
+      borderRadius: 16,
+      backgroundColor: c.cardDark,
     },
     primaryBtnDisabled: { backgroundColor: c.cardBorder },
-    primaryBtnText: { ...Typography.subheadline, color: c.background, fontWeight: '600' },
+    primaryBtnText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
     primaryBtnTextDisabled: { color: c.textMuted },
 
     linkText: { ...Typography.caption, color: c.accent },
@@ -281,7 +298,7 @@ function makeStyles(c: ColorPalette) {
       marginTop: 8,
       paddingVertical: 10,
       paddingHorizontal: 16,
-      borderRadius: 8,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardBorder,
     },

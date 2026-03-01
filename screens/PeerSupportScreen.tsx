@@ -52,8 +52,8 @@ function CategoryPill({ category, isSelected, onPress }: { category: PostCategor
   const st = React.useMemo(() => makeStyles(c), [c]);
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-      <View style={[st.pill, { backgroundColor: isSelected ? c.accent : c.cardBackground }]}>
-        <Text style={[st.pillText, { color: isSelected ? c.background : c.textSecondary }]}>{category}</Text>
+      <View style={[st.pill, { backgroundColor: isSelected ? c.cardDark : c.cardBackground }]}>
+        <Text style={[st.pillText, { color: isSelected ? c.cardDarkText : c.textSecondary }]}>{category}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -587,7 +587,7 @@ export default function PeerSupportScreen() {
 
       {/* FAB */}
       <TouchableOpacity style={st.fab} onPress={() => setShowNewPost(true)}>
-        <Ionicons name="add" size={24} color={c.background} />
+        <Ionicons name="add" size={24} color={c.cardDarkText} />
       </TouchableOpacity>
 
       <NewPostModal visible={showNewPost} onClose={() => setShowNewPost(false)} onSubmit={handleNewPost} />
@@ -618,24 +618,26 @@ function makeStyles(c: ColorPalette) {
     },
     headerCenter: { alignItems: 'center' },
     headerTitle: { ...Typography.subheadline, color: c.textPrimary },
-    headerSubtitle: { fontSize: 10, fontWeight: '500', color: c.textMuted, letterSpacing: 1, marginTop: 2 },
+    headerSubtitle: { fontSize: 10, fontWeight: '500', color: c.textMuted, letterSpacing: 1, marginTop: 2, fontFamily: 'Lato' },
 
     searchBar: {
       flexDirection: 'row',
       alignItems: 'center',
       marginHorizontal: 24,
       marginBottom: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       backgroundColor: c.cardBackground,
-      borderRadius: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
       gap: 8,
     },
     searchInput: { flex: 1, ...Typography.body, color: c.textPrimary, padding: 0 },
 
     pillScroll: { minHeight: 44, maxHeight: 44 },
     pillContainer: { paddingHorizontal: 24, paddingVertical: 4, gap: 8, alignItems: 'center' as const },
-    pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+    pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
     pillText: { ...Typography.caption },
     pillRow: { flexDirection: 'row', gap: 8 },
 
@@ -644,10 +646,10 @@ function makeStyles(c: ColorPalette) {
     emptyState: { alignItems: 'center', paddingTop: 60, gap: 12 },
     emptyText: { ...Typography.body, color: c.textMuted, textAlign: 'center' },
 
-    postCard: { backgroundColor: c.cardBackground, borderRadius: 14, overflow: 'hidden' },
+    postCard: { backgroundColor: c.cardBackground, borderRadius: 18, overflow: 'hidden' },
     postImage: { height: 110, justifyContent: 'center', alignItems: 'center' },
     postBody: { padding: 16, gap: 10 },
-    categoryLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8 },
+    categoryLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, fontFamily: 'Lato' },
     titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
     postTitle: { ...Typography.subheadline, color: c.textPrimary, flex: 1 },
     authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -659,7 +661,7 @@ function makeStyles(c: ColorPalette) {
     actionGroup: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     actionCount: { ...Typography.small, color: c.textMuted },
     actionSpacer: { flex: 1 },
-    commentButton: { backgroundColor: c.accentGlow, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 6 },
+    commentButton: { backgroundColor: c.cardPeach, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12 },
     commentButtonText: { ...Typography.small, color: c.accent, fontWeight: '600' },
 
     fab: {
@@ -668,15 +670,15 @@ function makeStyles(c: ColorPalette) {
       right: 24,
       width: 52,
       height: 52,
-      borderRadius: 14,
-      backgroundColor: c.accent,
+      borderRadius: 16,
+      backgroundColor: c.cardDark,
       justifyContent: 'center',
       alignItems: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
+      shadowOpacity: 0.15,
       shadowRadius: 8,
-      elevation: 8,
+      elevation: 6,
     },
 
     // New Post Modal
@@ -690,11 +692,11 @@ function makeStyles(c: ColorPalette) {
     toggleText: { ...Typography.body, color: c.textPrimary },
     fieldGroup: { gap: 8 },
     fieldLabel: { ...Typography.caption, color: c.textMuted },
-    textInput: { ...Typography.body, color: c.textPrimary, padding: 14, backgroundColor: c.cardBackground, borderRadius: 10 },
+    textInput: { ...Typography.body, color: c.textPrimary, padding: 14, backgroundColor: c.cardBackground, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder },
     textArea: { height: 150, textAlignVertical: 'top', paddingTop: 12 },
-    submitButton: { backgroundColor: c.accent, paddingVertical: 15, borderRadius: 10, alignItems: 'center' },
+    submitButton: { backgroundColor: c.cardDark, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
     submitButtonDisabled: { backgroundColor: c.cardBorder },
-    submitButtonText: { ...Typography.subheadline, color: c.background, fontWeight: '600' },
+    submitButtonText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
 
     // Post Detail Modal
     detailContainer: { flex: 1, backgroundColor: c.background },
@@ -712,11 +714,11 @@ function makeStyles(c: ColorPalette) {
       width: 28,
       height: 28,
       borderRadius: 14,
-      backgroundColor: c.accent,
+      backgroundColor: c.cardDark,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    commentAvatarText: { fontSize: 12, fontWeight: '600', color: c.background },
+    commentAvatarText: { fontSize: 12, fontWeight: '600', color: c.cardDarkText, fontFamily: 'Lato' },
     commentBody: { flex: 1, gap: 2 },
     commentAuthor: { ...Typography.caption, color: c.textPrimary },
     commentContent: { ...Typography.body, color: c.textSecondary },
@@ -731,6 +733,6 @@ function makeStyles(c: ColorPalette) {
       borderTopColor: c.cardBorder,
       gap: 10,
     },
-    commentInput: { flex: 1, ...Typography.body, color: c.textPrimary, backgroundColor: c.cardBackground, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    commentInput: { flex: 1, ...Typography.body, color: c.textPrimary, backgroundColor: c.cardBackground, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 14, paddingVertical: 10 },
   });
 }

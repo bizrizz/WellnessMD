@@ -136,7 +136,7 @@ export default function ActivityGuideScreen() {
       {/* Content area */}
       <View style={s.contentArea}>
         <View style={s.iconCircle}>
-          <MaterialCommunityIcons name="yoga" size={48} color={c.accent} />
+          <MaterialCommunityIcons name="yoga" size={48} color={c.cardDark} />
         </View>
         <Text style={s.stepSubtitle}>{step.subtitle}</Text>
         <Text style={s.stepDescription}>{step.description}</Text>
@@ -186,8 +186,8 @@ function makeStyles(c: ColorPalette) {
     },
     headerTitle: { ...Typography.caption, color: c.textSecondary },
 
-    progressBar: { height: 3, backgroundColor: c.cardBorder, marginHorizontal: 24 },
-    progressFill: { height: 3, backgroundColor: c.accent, borderRadius: 2 },
+    progressBar: { height: 4, backgroundColor: c.cardBorder, marginHorizontal: 24, borderRadius: 2 },
+    progressFill: { height: 4, backgroundColor: c.cardDark, borderRadius: 2 },
 
     stepMeta: { paddingHorizontal: 24, paddingTop: 24, gap: 4 },
     stepLabel: { ...Typography.small, color: c.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
@@ -195,10 +195,10 @@ function makeStyles(c: ColorPalette) {
 
     contentArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
     iconCircle: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: c.accentGlow,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
+      backgroundColor: c.cardPeach,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 8,
@@ -211,6 +211,7 @@ function makeStyles(c: ColorPalette) {
       fontSize: 44,
       fontWeight: '300',
       color: c.textPrimary,
+      fontFamily: 'Lato',
       fontVariant: ['tabular-nums'],
       letterSpacing: 2,
     },
@@ -219,19 +220,21 @@ function makeStyles(c: ColorPalette) {
     secondaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     secondaryText: { ...Typography.caption, color: c.textMuted },
     playBtn: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
       backgroundColor: c.cardBackground,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
     primaryBtn: {
       alignItems: 'center',
-      paddingVertical: 15,
-      borderRadius: 10,
-      backgroundColor: c.accent,
+      paddingVertical: 16,
+      borderRadius: 16,
+      backgroundColor: c.cardDark,
     },
-    primaryBtnText: { ...Typography.subheadline, color: c.background, fontWeight: '600' },
+    primaryBtnText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
   });
 }

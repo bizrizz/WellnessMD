@@ -43,8 +43,8 @@ function CategoryChip({
   const st = React.useMemo(() => makeStyles(c), [c]);
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-      <View style={[st.chip, { backgroundColor: isSelected ? c.accent : c.cardBackground }]}>
-        <Text style={[st.chipText, { color: isSelected ? c.background : c.textSecondary }]}>{label}</Text>
+      <View style={[st.chip, { backgroundColor: isSelected ? c.cardDark : c.cardBackground }]}>
+        <Text style={[st.chipText, { color: isSelected ? c.cardDarkText : c.textSecondary }]}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -171,7 +171,7 @@ export default function ResourcesScreen() {
 
         {/* Emergency footer */}
         <View style={st.emergencyCard}>
-          <Ionicons name="shield-checkmark-outline" size={20} color={c.accent} />
+          <Ionicons name="shield-checkmark-outline" size={20} color={c.cardDarkText} />
           <Text style={st.emergencyText}>
             If you or someone you know is in immediate danger, call 911 or your local emergency number.
           </Text>
@@ -193,7 +193,7 @@ function makeStyles(c: ColorPalette) {
 
     chipScroll: { marginTop: 12, minHeight: 44, maxHeight: 44 },
     chipContainer: { paddingHorizontal: 24, paddingVertical: 4, gap: 8, alignItems: 'center' as const },
-    chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+    chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
     chipText: { ...Typography.caption },
 
     listContainer: { paddingHorizontal: 24, paddingTop: 16 },
@@ -202,7 +202,7 @@ function makeStyles(c: ColorPalette) {
     categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     categoryTitle: { ...Typography.caption, color: c.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
 
-    resourceCard: { padding: 14 },
+    resourceCard: { padding: 16 },
     resourceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     iconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     resourceContent: { flex: 1, gap: 3 },
@@ -216,10 +216,10 @@ function makeStyles(c: ColorPalette) {
       alignItems: 'flex-start',
       gap: 10,
       padding: 16,
-      backgroundColor: c.cardBackground,
-      borderRadius: 12,
+      backgroundColor: c.cardDark,
+      borderRadius: 16,
       marginTop: 8,
     },
-    emergencyText: { ...Typography.small, color: c.textSecondary, flex: 1, lineHeight: 18 },
+    emergencyText: { ...Typography.small, color: c.cardDarkText, flex: 1, lineHeight: 18 },
   });
 }

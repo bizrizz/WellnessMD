@@ -28,6 +28,7 @@ export function getRoleDescription(pgyYear: PGYYear, specialty: Specialty): stri
 export interface User {
   id: string;
   name: string;
+  avatarUrl?: string | null;
   role: UserRole;
   pgyYear: PGYYear;
   specialty: Specialty;
@@ -123,6 +124,14 @@ export interface ActivityLog {
   category: ActivityCategory;
   durationMinutes: number;
   completedAt: Date;
+}
+
+export type MoodValue = 'Happy' | 'Calm' | 'Relax' | 'Focus';
+
+export interface MoodLog {
+  id: string;
+  mood: MoodValue;
+  loggedAt: Date;
 }
 
 export type ResourceCategory = 'Mental Health' | 'Nutrition' | 'Spiritual Support' | 'Institutional Support';

@@ -8,16 +8,16 @@ A wellness app built for medical residents — micro-interventions, community su
 - **Backend:** Supabase (Auth, Postgres, Row-Level Security)
 - **State Management:** Zustand
 - **Navigation:** React Navigation (bottom tabs + stack)
-- **Auth:** Email OTP via Supabase
+- **Auth:** Email / password via Supabase
 
 ## Features
 
-- **Email OTP authentication** — sign up or sign in with Gmail, no passwords
+- **Email authentication** — sign up or sign in with email and password
 - **Micro-interventions** — guided breathing, stretching, and mindfulness sessions with step-by-step timers
-- **Activity logging** — tracks completed sessions, streak, and total minutes (synced to Supabase)
+- **Activity logging** — tracks completed sessions, streak, and total minutes (synced to Supabase); analytics (streak, sessions, min total) shown in Profile
 - **Community forum** — anonymous posts, comments, likes, and reporting (all persisted in Supabase)
 - **External resources** — curated mental health, nutrition, spiritual, and institutional support links
-- **Profile management** — edit name, PGY year, specialty, notification preferences (synced to Supabase)
+- **Profile management** — edit name, PGY year, specialty, profile photo, notification preferences (synced to Supabase)
 - **Dark / Light mode** — full theme support across every screen
 - **Anonymized participant IDs** — `P-000001` format for research compliance; no emails exposed in forum
 
@@ -87,7 +87,9 @@ wellnessapp/
 
 4. Set up the database — go to your Supabase dashboard → **SQL Editor** → **New Query**, paste the contents of `supabase/schema.sql`, and click **Run**.
 
-5. Start the app:
+5. (Required for profile photos) Create Storage bucket: Supabase Dashboard → **Storage** → **New bucket** → name `avatars` → enable **Public** → **Create bucket**. Add policy: Storage → avatars → Policies → **New policy** → "Allow authenticated uploads" → allow `INSERT` for `auth.role() = 'authenticated'`.
+
+6. Start the app:
    ```bash
    npx expo start
    ```

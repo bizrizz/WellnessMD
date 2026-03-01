@@ -36,6 +36,7 @@ create table if not exists profiles (
   id                       uuid primary key references auth.users(id) on delete cascade,
   participant_id           text unique not null default generate_participant_id(),
   full_name                text,
+  avatar_url               text,
   pgy_year                 text,
   specialty                text,
   primary_stressors        text[] default '{}',
@@ -46,6 +47,12 @@ create table if not exists profiles (
   created_at               timestamptz default now(),
   updated_at               timestamptz default now()
 );
+
+-- Add avatar_url if upgrading existing DB (safe to run multiple times)
+alter table profiles add column if not exists avatar_url text;
+
+-- Storage: Create bucket "avatars" in Supabase Dashboard > Storage > New bucket.
+-- Set to Public. Run the storage policies below in SQL Editor (see end of file).
 
 -- Auto-create a profile when a new user signs up
 create or replace function handle_new_user()
@@ -115,6 +122,26 @@ create table if not exists activity_logs (
 
 create index if not exists idx_activity_logs_user      on activity_logs(user_id);
 create index if not exists idx_activity_logs_completed on activity_logs(completed_at);
+
+
+-- ============================================================
+-- 4b. MOOD LOGS  (daily check-ins)
+-- ============================================================
+-- One row per check-in. User can change mood during the day; we use most recent per day for "today's mood".
+
+create table if not exists mood_logs (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  mood        text not null check (mood in ('Happy', 'Calm', 'Relax', 'Focus')),
+  logged_at   timestamptz default now()
+);
+
+create index if not exists idx_mood_logs_user    on mood_logs(user_id);
+create index if not exists idx_mood_logs_logged  on mood_logs(logged_at desc);
+
+alter table mood_logs enable row level security;
+create policy "Users read own mood logs"  on mood_logs for select using (auth.uid() = user_id);
+create policy "Users insert own mood logs" on mood_logs for insert with check (auth.uid() = user_id);
 
 
 -- ============================================================
@@ -297,6 +324,35 @@ insert into resources (title, category, description, contact_info, link) values
   ('Resident Wellness Office',    'Institutional Support', 'Your program likely has a dedicated wellness lead for support.',              null, null),
   ('PARO Wellness Resources',     'Institutional Support', 'Professional Association of Residents of Ontario — wellness and advocacy.',   null, 'https://www.myparo.ca')
 on conflict do nothing;
+
+
+-- ============================================================
+-- STORAGE POLICIES (avatars bucket – run after creating bucket)
+-- ============================================================
+-- Fixes "new row violates row-level security policy" on avatar upload.
+-- Create bucket first: Dashboard → Storage → New bucket → name "avatars" → Public.
+-- Then run these in SQL Editor:
+
+drop policy if exists "Users can upload own avatar" on storage.objects;
+create policy "Users can upload own avatar"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'avatars' and
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Anyone can view avatars" on storage.objects;
+create policy "Anyone can view avatars"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+drop policy if exists "Users can update own avatar" on storage.objects;
+create policy "Users can update own avatar"
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'avatars' and
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 
 -- ============================================================

@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,20 +21,26 @@ import { useAppStore } from '../store/appStore';
 import { getRoleDescription, PGYYear, PGY_YEARS, Specialty, SPECIALTIES } from '../store/types';
 import { signOut as signOutSupabase, updateUserProfileMetadata } from '../auth/authService';
 import { isSupabaseConfigured } from '../supabase/client';
-import { fetchProfile, updateProfile } from '../supabase/api';
+import { fetchProfile, updateProfile, updateProfileAvatar, uploadAvatar } from '../supabase/api';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { Image } from 'expo-image';
 
 const FREQUENCY_STEPS = 5;
 
 export default function ProfileScreen() {
   const c = useColors();
   const st = useMemo(() => makeStyles(c), [c]);
-  const { currentUser, signOut, updateCurrentUserName, updateCurrentUserPGY, updateCurrentUserSpecialty, isDarkMode, toggleDarkMode } = useAppStore();
+  const { currentUser, signOut, updateCurrentUserName, updateCurrentUserPGY, updateCurrentUserSpecialty, updateAvatarUrl, isDarkMode, toggleDarkMode } = useAppStore();
+  const activityLogs = useAppStore((s) => s.activityLogs);
+  const moodLogs = useAppStore((s) => s.moodLogs);
   const [smartAlertsEnabled, setSmartAlertsEnabled] = useState(true);
   const [frequencyIndex, setFrequencyIndex] = useState(3);
   const [quietHoursStart, setQuietHoursStart] = useState('22:00');
   const [quietHoursEnd, setQuietHoursEnd] = useState('06:00');
 
   const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showEditPGYModal, setShowEditPGYModal] = useState(false);
   const [showEditSpecialtyModal, setShowEditSpecialtyModal] = useState(false);
   const [showQuietHoursModal, setShowQuietHoursModal] = useState(false);
@@ -91,15 +98,80 @@ export default function ProfileScreen() {
     signOut();
   };
 
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow access to photos to change your profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+      // Convert HEIC to JPEG on iPhone (default .current keeps HEIC, which fails to upload/display)
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Automatic,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.uri || !uid) return;
+    setUploadingPhoto(true);
+    let uploadSource: { base64: string } | { uri: string };
+    try {
+      const resized = await ImageManipulator.manipulateAsync(asset.uri, [
+        { resize: { width: 400, height: 400 } },
+      ], { base64: true, compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      uploadSource = resized.base64 ? { base64: resized.base64 } : { uri: resized.uri };
+    } catch {
+      uploadSource = asset.base64 ? { base64: asset.base64 } : { uri: asset.uri };
+    }
+    const { url, error } = await uploadAvatar(uid, uploadSource);
+    setUploadingPhoto(false);
+    if (error) {
+      Alert.alert('Upload failed', String(error));
+      return;
+    }
+    if (url) {
+      updateAvatarUrl(url);
+      if (isReal) {
+        const { error: updateError } = await updateProfileAvatar(uid, url);
+        if (updateError) {
+          Alert.alert('Upload ok, save failed', String(updateError?.message ?? updateError) || 'Profile could not be updated.');
+        }
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={st.container} edges={['top']}>
       <ScrollView contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Profile header */}
         <View style={st.profileHeader}>
-          <View style={st.avatarCircle}>
-            <Text style={st.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
-          </View>
+          <TouchableOpacity onPress={handlePickPhoto} style={st.avatarTouch} disabled={uploadingPhoto}>
+            <View style={st.avatarCircle}>
+              <Text style={st.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
+              {currentUser?.avatarUrl ? (
+                <Image
+                  source={{ uri: currentUser.avatarUrl }}
+                  style={st.avatarImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : null}
+              {uploadingPhoto && (
+                <View style={st.avatarOverlay}>
+                  <ActivityIndicator size="small" color={c.cardDarkText} />
+                </View>
+              )}
+            </View>
+            {!uploadingPhoto && (
+              <View style={st.avatarBadge}>
+                <Ionicons name="camera" size={12} color={c.cardDarkText} />
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => { setEditableName(userName); setShowEditNameModal(true); }}>
             <Text style={st.userName}>{userName} <Ionicons name="pencil" size={13} color={c.textMuted} /></Text>
           </TouchableOpacity>
@@ -107,6 +179,38 @@ export default function ProfileScreen() {
             <Text style={st.userSub}>{pgyYear} · <Text onPress={() => { setEditableSpecialty(specialty); setShowEditSpecialtyModal(true); }}>{specialty}</Text></Text>
           </TouchableOpacity>
           <Text style={st.userEmail}>{userEmail}</Text>
+        </View>
+
+        {/* Analytics */}
+        <View style={st.section}>
+          <Text style={st.sectionLabel}>ANALYTICS</Text>
+          <AppCard style={st.card}>
+            <View style={st.analyticsRow}>
+              <View style={st.analyticsStat}>
+                <Ionicons name="flame-outline" size={20} color={c.warm} />
+                <Text style={st.analyticsValue}>{currentUser?.streak ?? 0}</Text>
+                <Text style={st.analyticsLabel}>day streak</Text>
+              </View>
+              <View style={st.dividerVertical} />
+              <View style={st.analyticsStat}>
+                <Ionicons name="checkmark-done-outline" size={20} color={c.accent} />
+                <Text style={st.analyticsValue}>{currentUser?.sessionsCompleted ?? 0}</Text>
+                <Text style={st.analyticsLabel}>sessions</Text>
+              </View>
+              <View style={st.dividerVertical} />
+              <View style={st.analyticsStat}>
+                <Ionicons name="time-outline" size={20} color={c.sosBlue} />
+                <Text style={st.analyticsValue}>{activityLogs.reduce((s, l) => s + l.durationMinutes, 0)}</Text>
+                <Text style={st.analyticsLabel}>min total</Text>
+              </View>
+              <View style={st.dividerVertical} />
+              <View style={st.analyticsStat}>
+                <Ionicons name="happy-outline" size={20} color={c.cardPeach} />
+                <Text style={st.analyticsValue}>{moodLogs.length}</Text>
+                <Text style={st.analyticsLabel}>mood check-ins</Text>
+              </View>
+            </View>
+          </AppCard>
         </View>
 
         {/* Notifications */}
@@ -276,16 +380,21 @@ function makeStyles(c: ColorPalette) {
     scroll: { paddingHorizontal: 24, paddingTop: 20 },
 
     profileHeader: { alignItems: 'center', marginBottom: 28, gap: 4 },
+    avatarTouch: { position: 'relative', marginBottom: 6 },
     avatarCircle: {
       width: 72,
       height: 72,
       borderRadius: 36,
-      backgroundColor: c.accent,
+      backgroundColor: c.cardDark,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 10,
+      overflow: 'hidden' as const,
     },
-    avatarText: { fontSize: 28, fontWeight: '600', color: c.background },
+    avatarImage: { position: 'absolute', width: 72, height: 72, borderRadius: 36 },
+    avatarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+    avatarBadge: { position: 'absolute', right: 0, bottom: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: c.cardDark, alignItems: 'center', justifyContent: 'center' },
+    avatarText: { fontSize: 28, fontWeight: '600', color: c.cardDarkText, fontFamily: 'Playfair Display' },
     userName: { ...Typography.headline, color: c.textPrimary },
     userSub: { ...Typography.body, color: c.textSecondary },
     userEmail: { ...Typography.small, color: c.textMuted, marginTop: 2 },
@@ -298,6 +407,11 @@ function makeStyles(c: ColorPalette) {
     rowTitle: { ...Typography.body, color: c.textPrimary },
     rowSub: { ...Typography.small, color: c.textMuted, marginTop: 1 },
     divider: { height: 1, backgroundColor: c.cardBorder, marginHorizontal: 14 },
+    dividerVertical: { width: 1, backgroundColor: c.cardBorder, marginVertical: 4 },
+    analyticsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: 16, paddingHorizontal: 8 },
+    analyticsStat: { alignItems: 'center', gap: 4, flex: 1 },
+    analyticsValue: { ...Typography.headline, color: c.textPrimary },
+    analyticsLabel: { ...Typography.small, color: c.textSecondary },
 
     freqBlock: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
     freqLabel: { ...Typography.small, color: c.textMuted },
@@ -308,7 +422,7 @@ function makeStyles(c: ColorPalette) {
     signOutBtn: {
       alignItems: 'center',
       paddingVertical: 14,
-      borderRadius: 10,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: c.cardBorder,
       marginBottom: 12,
@@ -317,27 +431,29 @@ function makeStyles(c: ColorPalette) {
     version: { ...Typography.small, color: c.textMuted, textAlign: 'center' },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 },
-    modalCard: { backgroundColor: c.backgroundSecondary, borderRadius: 14, padding: 20, gap: 14 },
+    modalCard: { backgroundColor: c.backgroundSecondary, borderRadius: 16, padding: 20, gap: 14 },
     modalTitle: { ...Typography.subheadline, color: c.textPrimary },
     modalInput: {
       ...Typography.body,
       color: c.textPrimary,
       backgroundColor: c.cardBackground,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
     miniLabel: { ...Typography.small, color: c.textMuted },
 
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: c.cardBackground },
-    chipSelected: { backgroundColor: c.accentGlow },
+    chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: c.cardBackground, borderWidth: 1, borderColor: c.cardBorder },
+    chipSelected: { backgroundColor: c.cardDark, borderColor: c.cardDark },
     chipText: { ...Typography.caption, color: c.textMuted },
-    chipTextSelected: { color: c.accent },
+    chipTextSelected: { color: c.cardDarkText },
 
     modalBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
     modalCancel: { ...Typography.caption, color: c.textMuted, paddingVertical: 8 },
-    modalSaveBtn: { backgroundColor: c.accent, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
-    modalSaveText: { ...Typography.caption, color: c.background, fontWeight: '600' },
+    modalSaveBtn: { backgroundColor: c.cardDark, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
+    modalSaveText: { ...Typography.caption, color: c.cardDarkText, fontWeight: '600' },
   });
 }

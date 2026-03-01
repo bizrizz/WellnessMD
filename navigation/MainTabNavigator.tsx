@@ -36,8 +36,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         style={{ flex: 1, alignItems: 'center', gap: 4 }}
         onPress={() => navigation.navigate(tab.name)}
       >
-        <Ionicons name={iconName} size={22} color={isFocused ? c.accent : c.textMuted} />
-        <Text style={{ fontSize: 10, fontWeight: '500', color: isFocused ? c.accent : c.textMuted }}>{tab.label}</Text>
+        <Ionicons name={iconName} size={22} color={isFocused ? c.cardDark : c.textMuted} />
+        <Text style={{ fontSize: 10, fontWeight: '500', color: isFocused ? c.cardDark : c.textMuted, fontFamily: 'Lato' }}>{tab.label}</Text>
       </TouchableOpacity>
     );
   };
@@ -50,12 +50,9 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         paddingTop: 12,
         paddingHorizontal: 8,
         paddingBottom: insets.bottom || 28,
-        backgroundColor: c.backgroundSecondary,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-        elevation: 10,
+        backgroundColor: c.background,
+        borderTopWidth: 1,
+        borderTopColor: c.cardBorder,
       }}
     >
       {TABS.map(renderTab)}

@@ -1,12 +1,14 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Linking,
+  Animated,
+  Easing,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -22,30 +24,69 @@ import AppCard from '../components/AppCard';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { isSupabaseConfigured } from '../supabase/client';
-import { fetchActivityLogs } from '../supabase/api';
+import { fetchActivityLogs, fetchMoodLogs, fetchTodaysMood, logMood } from '../supabase/api';
 
 type Nav = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Dashboard'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const MAX_BAR_HEIGHT = 56;
-
 const RESOURCE_HIGHLIGHTS = [
-  { label: 'Mental Health', icon: 'heart-outline' as const, color: '#A855F7' },
-  { label: 'Nutrition', icon: 'nutrition' as const, color: '#22C55E' },
-  { label: 'Support', icon: 'business-outline' as const, color: '#3B82F6' },
+  { label: 'Mental Health', icon: 'heart-outline' as const },
+  { label: 'Nutrition', icon: 'nutrition' as const },
+  { label: 'Support', icon: 'business-outline' as const },
 ];
+
+const MOODS: { label: string; icon: 'happy' | 'calm' | 'relax' | 'focus' }[] = [
+  { label: 'Happy', icon: 'happy' },
+  { label: 'Calm', icon: 'calm' },
+  { label: 'Relax', icon: 'relax' },
+  { label: 'Focus', icon: 'focus' },
+];
+
+function MoodIcon({
+  name,
+  isSelected,
+  colors,
+}: {
+  name: 'happy' | 'calm' | 'relax' | 'focus';
+  isSelected: boolean;
+  colors: ColorPalette;
+}) {
+  const iconColor = isSelected ? colors.cardDark : '#FFFFFF';
+  const size = 42;
+  switch (name) {
+    case 'happy':
+      return <Ionicons name="happy-outline" size={size} color={iconColor} />;
+    case 'calm':
+      return <MaterialCommunityIcons name="yin-yang" size={size} color={iconColor} />;
+    case 'relax':
+      return <MaterialCommunityIcons name="waves" size={size} color={iconColor} />;
+    case 'focus':
+      return <MaterialCommunityIcons name="meditation" size={size} color={iconColor} />;
+  }
+}
 
 export default function WellnessDashboardScreen() {
   const c = useColors();
   const s = useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const currentUser = useAppStore((s) => s.currentUser);
-  const activityLogs = useAppStore((s) => s.activityLogs);
   const hydrateActivityLogs = useAppStore((s) => s.hydrateActivityLogs);
+  const hydrateMoodLogs = useAppStore((s) => s.hydrateMoodLogs);
+  const logMoodStore = useAppStore((s) => s.logMood);
+  const moodLogs = useAppStore((s) => s.moodLogs);
   const userName = currentUser?.name ?? 'there';
+
+  const isMoodLoggedToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return moodLogs.some((log) => {
+      const d = new Date(log.loggedAt);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() === today.getTime();
+    });
+  };
 
   useEffect(() => {
     const uid = currentUser?.id;
@@ -64,35 +105,85 @@ export default function WellnessDashboardScreen() {
         );
       }
     });
+    fetchMoodLogs(uid).then(({ data }) => {
+      if (data && data.length > 0) {
+        hydrateMoodLogs(
+          data.map((row: any) => ({
+            id: row.id,
+            mood: row.mood,
+            loggedAt: new Date(row.logged_at),
+          })),
+        );
+      }
+    });
   }, [currentUser?.id]);
-  const firstName = userName.split(' ')[0];
-  const streak = currentUser?.streak ?? 0;
-  const sessionsCompleted = currentUser?.sessionsCompleted ?? 0;
 
-  const weeklyData = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
-    monday.setHours(0, 0, 0, 0);
+  const [selectedMood, setSelectedMood] = React.useState<string | null>(null);
+  const [showMoodSection, setShowMoodSection] = React.useState(true);
+  const moodFadeAnim = useRef(new Animated.Value(1)).current;
+  const moodScaleAnim = useRef(new Animated.Value(1)).current;
+  const isAnimatingOut = useRef(false);
 
-    const counts = [0, 0, 0, 0, 0, 0, 0];
-    for (const log of activityLogs) {
-      const d = new Date(log.completedAt);
-      d.setHours(0, 0, 0, 0);
-      const diff = Math.floor((d.getTime() - monday.getTime()) / 86400000);
-      if (diff >= 0 && diff < 7) counts[diff] += 1;
+  useEffect(() => {
+    const uid = currentUser?.id;
+    if (!uid || uid.startsWith('local-')) return;
+    if (isSupabaseConfigured) {
+      fetchTodaysMood(uid).then(({ mood }) => {
+        if (mood) {
+          setSelectedMood(mood);
+          setShowMoodSection(false);
+        }
+      });
     }
+  }, [currentUser?.id]);
 
-    const max = Math.max(...counts, 1);
-    return counts.map((c) => c / max);
-  }, [activityLogs]);
+  useEffect(() => {
+    if (!isAnimatingOut.current && isMoodLoggedToday()) setShowMoodSection(false);
+  }, [moodLogs]);
 
-  const todayIndex = useMemo(() => {
-    const d = new Date().getDay();
-    return d === 0 ? 6 : d - 1;
-  }, []);
+  useEffect(() => {
+    if (showMoodSection) {
+      moodFadeAnim.setValue(1);
+      moodScaleAnim.setValue(1);
+    }
+  }, [showMoodSection]);
+
+  const handleMoodSelect = (mood: string) => {
+    setSelectedMood(mood);
+    logMoodStore(mood as 'Happy' | 'Calm' | 'Relax' | 'Focus');
+    const uid = currentUser?.id;
+    if (isSupabaseConfigured && uid && !uid.startsWith('local-')) {
+      logMood(uid, mood as 'Happy' | 'Calm' | 'Relax' | 'Focus');
+    }
+    isAnimatingOut.current = true;
+    Animated.parallel([
+      Animated.timing(moodFadeAnim, {
+        toValue: 0,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(moodScaleAnim, {
+        toValue: 0.94,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      isAnimatingOut.current = false;
+      setShowMoodSection(false);
+    });
+  };
+
+  const firstName = userName.split(' ')[0];
+
+  const hour = new Date().getHours();
+  const timeGreeting = hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greetingSubtext = hour >= 5 && hour < 12
+    ? 'Ready for a mindful start?'
+    : hour >= 12 && hour < 17
+      ? "Here's today's focus"
+      : 'Wind down with a short practice';
 
   const handleActivityPress = (activity: WellnessActivity) => {
     navigation.navigate('ActivityGuide', { activityId: activity.id });
@@ -105,97 +196,96 @@ export default function WellnessDashboardScreen() {
         {/* Header */}
         <View style={s.header}>
           <View style={s.headerLeft}>
-            <Text style={s.greeting}>Hey {firstName}</Text>
-            <Text style={s.subGreeting}>How are you feeling today?</Text>
+            <Text style={s.greeting}>{timeGreeting}, <Text style={s.greetingBold}>{firstName}!</Text></Text>
+            {!showMoodSection && <Text style={s.greetingSub}>{greetingSubtext}</Text>}
           </View>
-          <View style={s.avatarCircle}>
-            <Text style={s.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {/* Stats row */}
-        <View style={s.statsRow}>
-          <AppCard style={s.statCard}>
-            <Ionicons name="flame-outline" size={18} color={c.warm} />
-            <Text style={s.statValue}>{streak}</Text>
-            <Text style={s.statLabel}>day streak</Text>
-          </AppCard>
-          <AppCard style={s.statCard}>
-            <Ionicons name="checkmark-done-outline" size={18} color={c.accent} />
-            <Text style={s.statValue}>{sessionsCompleted}</Text>
-            <Text style={s.statLabel}>sessions</Text>
-          </AppCard>
-          <AppCard style={s.statCard}>
-            <Ionicons name="time-outline" size={18} color={c.sosBlue} />
-            <Text style={s.statValue}>{activityLogs.reduce((sum, l) => sum + l.durationMinutes, 0)}</Text>
-            <Text style={s.statLabel}>min total</Text>
-          </AppCard>
-        </View>
-
-        {/* Micro-interventions */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Quick interventions</Text>
-
-          {sampleActivities.map((activity) => (
-            <TouchableOpacity
-              key={activity.id}
-              activeOpacity={0.7}
-              onPress={() => handleActivityPress(activity)}
-            >
-              <AppCard style={s.interventionCard}>
-                <View style={s.interventionRow}>
-                  <View style={[s.interventionIcon, { backgroundColor: ActivityCategoryColors[activity.category] + '20' }]}>
-                    <MaterialCommunityIcons
-                      name={
-                        activity.category === 'FOCUS' ? 'brain' :
-                        activity.category === 'PHYSICAL' ? 'run' :
-                        activity.category === 'MINDFULNESS' ? 'meditation' : 'weather-night'
-                      }
-                      size={20}
-                      color={ActivityCategoryColors[activity.category]}
-                    />
-                  </View>
-                  <View style={s.interventionText}>
-                    <Text style={s.interventionTitle}>{activity.title}</Text>
-                    <Text style={s.interventionMeta}>{activity.duration} min · {activity.category.toLowerCase()}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
-                </View>
-              </AppCard>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Weekly Snapshot */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>This week</Text>
-          <AppCard style={s.weeklyCard}>
-            <View style={s.weeklyHeaderRow}>
-              <Text style={s.weeklyLabel}>Sessions completed</Text>
-              <Text style={s.weeklyTrend}>{activityLogs.length > 0 ? `${activityLogs.length} total` : 'No data yet'}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+            <View style={s.avatarCircle}>
+              <Text style={s.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+              {currentUser?.avatarUrl ? (
+                <Image
+                  source={{ uri: currentUser.avatarUrl }}
+                  style={s.avatarImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : null}
             </View>
-            <View style={s.chartContainer}>
-              {DAY_LABELS.map((label, index) => {
-                const isToday = index === todayIndex;
-                const value = weeklyData[index];
+          </TouchableOpacity>
+        </View>
+
+        {/* Mood row — once per day, fades out after selection */}
+        {showMoodSection && (
+          <Animated.View
+            style={[
+              s.moodSection,
+              {
+                opacity: moodFadeAnim,
+                transform: [{ scale: moodScaleAnim }],
+              },
+            ]}
+          >
+            <Text style={s.subGreeting}>How are you feeling today?</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.moodRow}>
+              {MOODS.map((m) => {
+                const isSelected = selectedMood === m.label;
                 return (
-                  <View key={index} style={s.barColumn}>
-                    <View
-                      style={[
-                        s.bar,
-                        {
-                          height: Math.max(value * MAX_BAR_HEIGHT, value > 0 ? 6 : 2),
-                          backgroundColor: isToday ? c.accent : value > 0 ? c.accentGlow : c.cardBorder,
-                          borderRadius: 4,
-                        },
-                      ]}
-                    />
-                    <Text style={[s.barLabel, isToday && { color: c.accent }]}>{label}</Text>
-                  </View>
+                  <TouchableOpacity
+                    key={m.label}
+                    style={[s.moodItem, isSelected && s.moodItemSelected]}
+                    activeOpacity={0.7}
+                    onPress={() => handleMoodSelect(m.label)}
+                  >
+                    <View style={[s.moodCircle, isSelected && s.moodCircleSelected]}>
+                      <MoodIcon name={m.icon} isSelected={isSelected} colors={c} />
+                    </View>
+                    <Text style={[s.moodLabel, isSelected && s.moodLabelSelected]}>{m.label}</Text>
+                  </TouchableOpacity>
                 );
               })}
-            </View>
-          </AppCard>
+            </ScrollView>
+          </Animated.View>
+        )}
+
+        {/* Today's Task / Interventions */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Today's Task</Text>
+
+          {sampleActivities.map((activity, idx) => {
+            const isDark = idx % 2 === 0;
+            return (
+              <TouchableOpacity
+                key={activity.id}
+                activeOpacity={0.7}
+                onPress={() => handleActivityPress(activity)}
+              >
+                <View style={[s.interventionCard, { backgroundColor: isDark ? c.cardDark : c.cardPeach }]}>
+                  <View style={s.interventionRow}>
+                    <View style={s.interventionText}>
+                      <Text style={[s.interventionTitle, { color: isDark ? c.cardDarkText : c.textPrimary }]}>{activity.title}</Text>
+                      <Text style={[s.interventionMeta, { color: isDark ? 'rgba(255,255,255,0.6)' : c.textSecondary }]}>
+                        {activity.duration} min · {activity.category.toLowerCase()}
+                      </Text>
+                      <Text style={[s.interventionCta, { color: isDark ? c.cardDarkText : c.accent }]}>
+                        Start now →
+                      </Text>
+                    </View>
+                    <View style={[s.interventionIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(107,142,107,0.12)' }]}>
+                      <MaterialCommunityIcons
+                        name={
+                          activity.category === 'FOCUS' ? 'brain' :
+                          activity.category === 'PHYSICAL' ? 'run' :
+                          activity.category === 'MINDFULNESS' ? 'meditation' : 'weather-night'
+                        }
+                        size={48}
+                        color={isDark ? c.cardDarkText : c.accent}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Resources shortcut */}
@@ -209,7 +299,7 @@ export default function WellnessDashboardScreen() {
           <View style={s.resourceChips}>
             {RESOURCE_HIGHLIGHTS.map((r) => (
               <TouchableOpacity key={r.label} activeOpacity={0.7} onPress={() => navigation.navigate('Resources')} style={s.resourceChip}>
-                <Ionicons name={r.icon as any} size={16} color={r.color} />
+                <Ionicons name={r.icon as any} size={16} color={c.accent} />
                 <Text style={s.resourceChipText}>{r.label}</Text>
               </TouchableOpacity>
             ))}
@@ -227,51 +317,69 @@ function makeStyles(c: ColorPalette) {
     container: { flex: 1, backgroundColor: c.background },
     scroll: { paddingHorizontal: 24, paddingTop: 16 },
 
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    headerLeft: { gap: 2 },
-    greeting: { ...Typography.title, color: c.textPrimary },
-    subGreeting: { ...Typography.body, color: c.textSecondary },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+    headerLeft: { flex: 1 },
+    greeting: { ...Typography.title, color: c.textPrimary, fontWeight: '400' },
+    greetingBold: { fontWeight: '700' },
+    greetingSub: { ...Typography.body, fontSize: 14, color: c.textSecondary, marginTop: 4, fontFamily: 'Lato' },
+    subGreeting: { ...Typography.body, color: c.textSecondary, marginBottom: 12 },
     avatarCircle: {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: c.accent,
+      backgroundColor: c.cardDark,
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden' as const,
     },
-    avatarText: { ...Typography.subheadline, color: c.background, fontWeight: '600' },
+    avatarText: { ...Typography.subheadline, color: c.cardDarkText, fontWeight: '600' },
+    avatarImage: { position: 'absolute', width: 44, height: 44, borderRadius: 22 },
 
-    statsRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
-    statCard: { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 4 },
-    statValue: { ...Typography.headline, color: c.textPrimary },
-    statLabel: { ...Typography.small, color: c.textMuted },
+    moodSection: { marginBottom: 24 },
+    moodRow: { gap: 16, paddingVertical: 4 },
+    moodItem: { alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
+    moodItemSelected: {},
+    moodCircle: {
+      width: 84,
+      height: 84,
+      borderRadius: 21,
+      backgroundColor: c.cardDark,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    moodCircleSelected: {
+      backgroundColor: '#F5F0E8',
+      borderWidth: 1.5,
+      borderColor: '#C8BFA8',
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+    },
+    moodLabel: { ...Typography.small, color: c.textPrimary, fontFamily: 'Lato', fontSize: 14 },
+    moodLabelSelected: { color: c.textPrimary },
 
     section: { marginBottom: 28, gap: 12 },
-    sectionTitle: { ...Typography.caption, color: c.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+    sectionTitle: { fontSize: 18, fontWeight: '600', color: c.textPrimary, fontFamily: 'Lato' },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     seeAll: { ...Typography.caption, color: c.accent },
 
-    interventionCard: { padding: 14 },
-    interventionRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    interventionCard: { padding: 22, borderRadius: 20 },
+    interventionRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
     interventionIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 10,
+      width: 80,
+      height: 80,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    interventionText: { flex: 1, gap: 2 },
-    interventionTitle: { ...Typography.subheadline, color: c.textPrimary },
-    interventionMeta: { ...Typography.small, color: c.textMuted },
-
-    weeklyCard: { padding: 18 },
-    weeklyHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
-    weeklyLabel: { ...Typography.caption, color: c.textSecondary },
-    weeklyTrend: { ...Typography.caption, color: c.accent },
-    chartContainer: { flexDirection: 'row', alignItems: 'flex-end', height: 72, gap: 10 },
-    barColumn: { flex: 1, alignItems: 'center', gap: 6 },
-    bar: { width: 20 },
-    barLabel: { ...Typography.small, color: c.textMuted },
+    interventionText: { flex: 1, gap: 4 },
+    interventionTitle: { ...Typography.subheadline, fontWeight: '600' },
+    interventionMeta: { ...Typography.small },
+    interventionCta: { ...Typography.caption, fontWeight: '600', marginTop: 4 },
 
     resourceChips: { flexDirection: 'row', gap: 10 },
     resourceChip: {
@@ -280,9 +388,11 @@ function makeStyles(c: ColorPalette) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      paddingVertical: 12,
+      paddingVertical: 14,
       backgroundColor: c.cardBackground,
-      borderRadius: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
     },
     resourceChipText: { ...Typography.small, color: c.textSecondary },
   });
