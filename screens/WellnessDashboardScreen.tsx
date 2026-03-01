@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import { useAppStore } from '../store/appStore';
 import AppCard from '../components/AppCard';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { isSupabaseConfigured } from '../supabase/client';
+import { fetchActivityLogs } from '../supabase/api';
 
 type Nav = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Dashboard'>,
@@ -42,7 +44,27 @@ export default function WellnessDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const currentUser = useAppStore((s) => s.currentUser);
   const activityLogs = useAppStore((s) => s.activityLogs);
+  const hydrateActivityLogs = useAppStore((s) => s.hydrateActivityLogs);
   const userName = currentUser?.name ?? 'there';
+
+  useEffect(() => {
+    const uid = currentUser?.id;
+    if (!isSupabaseConfigured || !uid || uid.startsWith('local-')) return;
+    fetchActivityLogs(uid).then(({ data }) => {
+      if (data && data.length > 0) {
+        hydrateActivityLogs(
+          data.map((row: any) => ({
+            id: row.id,
+            activityId: row.intervention_id ?? '',
+            activityTitle: '',
+            category: 'MINDFULNESS' as const,
+            durationMinutes: row.duration_minutes,
+            completedAt: new Date(row.completed_at),
+          })),
+        );
+      }
+    });
+  }, [currentUser?.id]);
   const firstName = userName.split(' ')[0];
   const streak = currentUser?.streak ?? 0;
   const sessionsCompleted = currentUser?.sessionsCompleted ?? 0;

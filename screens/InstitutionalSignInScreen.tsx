@@ -82,12 +82,14 @@ export default function InstitutionalSignInScreen() {
       return;
     }
 
+    const uid = data?.user?.id;
     if (isSignUp) {
       await updateUserProfileMetadata({ full_name: fullName.trim(), pgy_year: pgyYear, specialty });
-      signIn({ name: fullName.trim(), email: normalizedEmail, pgyYear, specialty, institution: null });
+      signIn({ id: uid, name: fullName.trim(), email: normalizedEmail, pgyYear, specialty, institution: null });
     } else {
       const meta = data?.user?.user_metadata ?? {};
       signIn({
+        id: uid,
         name: typeof meta.full_name === 'string' ? meta.full_name : 'Wellness User',
         email: data?.user?.email ?? normalizedEmail,
         pgyYear: meta.pgy_year ?? 'PGY-1',

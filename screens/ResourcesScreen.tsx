@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { ColorPalette } from '../components/theme/colors';
 import { Typography } from '../components/theme/typography';
 import AppCard from '../components/AppCard';
 import { sampleResources } from '../store/mockData';
+import { isSupabaseConfigured } from '../supabase/client';
+import { fetchResources as apiFetchResources } from '../supabase/api';
 import {
   Resource,
   ResourceCategory,
@@ -103,11 +105,30 @@ export default function ResourcesScreen() {
   const c = useColors();
   const st = React.useMemo(() => makeStyles(c), [c]);
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory | 'All'>('All');
+  const [resources, setResources] = useState<Resource[]>(sampleResources);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    apiFetchResources().then(({ data }) => {
+      if (data && data.length > 0) {
+        setResources(
+          data.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            category: r.category as ResourceCategory,
+            description: r.description,
+            contactInfo: r.contact_info ?? undefined,
+            link: r.link ?? undefined,
+          })),
+        );
+      }
+    });
+  }, []);
 
   const filtered = useMemo(() => {
-    if (selectedCategory === 'All') return sampleResources;
-    return sampleResources.filter((r) => r.category === selectedCategory);
-  }, [selectedCategory]);
+    if (selectedCategory === 'All') return resources;
+    return resources.filter((r) => r.category === selectedCategory);
+  }, [selectedCategory, resources]);
 
   const categories: (ResourceCategory | 'All')[] = ['All', ...RESOURCE_CATEGORIES];
 

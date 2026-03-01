@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,16 @@ import { ColorPalette } from '../components/theme/colors';
 import { Typography } from '../components/theme/typography';
 import { samplePosts } from '../store/mockData';
 import { useAppStore } from '../store/appStore';
+import { isSupabaseConfigured } from '../supabase/client';
+import {
+  fetchPosts as apiFetchPosts,
+  createPost as apiCreatePost,
+  toggleLike as apiToggleLike,
+  createReport as apiCreateReport,
+  fetchComments as apiFetchComments,
+  createComment as apiCreateComment,
+  CommentRow,
+} from '../supabase/api';
 import {
   POST_CATEGORIES,
   PostCategory,
@@ -29,10 +40,11 @@ import {
 interface LocalPost extends CommunityPost {
   isLiked: boolean;
   commentsList: string[];
+  dbComments: CommentRow[];
 }
 
 function toLocal(post: CommunityPost): LocalPost {
-  return { ...post, isLiked: false, commentsList: [] };
+  return { ...post, isLiked: false, commentsList: [], dbComments: [] };
 }
 
 function CategoryPill({ category, isSelected, onPress }: { category: PostCategory; isSelected: boolean; onPress: () => void }) {
@@ -107,7 +119,7 @@ function PostCard({
             </TouchableOpacity>
             <TouchableOpacity style={st.actionGroup} onPress={onPress} hitSlop={6}>
               <Ionicons name="chatbubble-outline" size={14} color={c.textSecondary} />
-              <Text style={st.actionCount}>{post.comments + post.commentsList.length}</Text>
+              <Text style={st.actionCount}>{post.comments + post.commentsList.length + post.dbComments.length}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={onFlag} hitSlop={8}>
               <Ionicons name="flag-outline" size={14} color={c.textMuted} />
@@ -129,12 +141,14 @@ function PostDetailModal({
   onClose,
   onToggleLike,
   onAddComment,
+  onLoadComments,
 }: {
   post: LocalPost | null;
   visible: boolean;
   onClose: () => void;
   onToggleLike: () => void;
   onAddComment: (text: string) => void;
+  onLoadComments: () => void;
 }) {
   const c = useColors();
   const st = React.useMemo(() => makeStyles(c), [c]);
@@ -145,7 +159,7 @@ function PostDetailModal({
   if (!post) return null;
 
   const categoryColor = PostCategoryColors[post.category] ?? c.accent;
-  const totalComments = post.comments + post.commentsList.length;
+  const totalComments = post.comments + post.commentsList.length + post.dbComments.length;
 
   const handleSend = () => {
     const trimmed = commentText.trim();
@@ -153,6 +167,10 @@ function PostDetailModal({
     onAddComment(trimmed);
     setCommentText('');
   };
+
+  useEffect(() => {
+    if (visible && post) onLoadComments();
+  }, [visible, post?.id]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -203,21 +221,29 @@ function PostDetailModal({
             {/* Comments */}
             <Text style={st.commentsHeader}>{totalComments} {totalComments === 1 ? 'comment' : 'comments'}</Text>
 
-            {post.commentsList.map((c, i) => (
-              <View key={i} style={st.commentCard}>
+            {post.dbComments.map((cm) => (
+              <View key={cm.id} style={st.commentCard}>
+                <View style={st.commentAvatar}>
+                  <Text style={st.commentAvatarText}>{cm.author_alias.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={st.commentBody}>
+                  <Text style={st.commentAuthor}>{cm.author_alias}</Text>
+                  <Text style={st.commentContent}>{cm.content}</Text>
+                </View>
+              </View>
+            ))}
+
+            {post.commentsList.map((txt, i) => (
+              <View key={`local-${i}`} style={st.commentCard}>
                 <View style={st.commentAvatar}>
                   <Text style={st.commentAvatarText}>{(currentUser?.name ?? 'U').charAt(0).toUpperCase()}</Text>
                 </View>
                 <View style={st.commentBody}>
                   <Text style={st.commentAuthor}>{currentUser?.name ?? 'You'}</Text>
-                  <Text style={st.commentContent}>{c}</Text>
+                  <Text style={st.commentContent}>{txt}</Text>
                 </View>
               </View>
             ))}
-
-            {post.comments > 0 && post.commentsList.length === 0 && (
-              <Text style={st.placeholderComments}>Earlier comments are not loaded in this demo.</Text>
-            )}
 
             <View style={{ height: 80 }} />
           </ScrollView>
@@ -342,16 +368,60 @@ function NewPostModal({
   );
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export default function PeerSupportScreen() {
   const c = useColors();
   const st = React.useMemo(() => makeStyles(c), [c]);
   const currentUser = useAppStore((s) => s.currentUser);
+  const userId = currentUser?.id ?? null;
+  const isReal = isSupabaseConfigured && userId && !userId.startsWith('local-');
+
   const [posts, setPosts] = useState<LocalPost[]>(() => samplePosts.map(toLocal));
+  const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PostCategory>('All');
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
+
+  const loadPosts = useCallback(async () => {
+    if (!isReal) return;
+    setLoading(true);
+    const { posts: dbPosts } = await apiFetchPosts(userId);
+    if (dbPosts.length > 0) {
+      setPosts(
+        dbPosts.map((p) => ({
+          id: p.id,
+          category: (POST_CATEGORIES.includes(p.category as PostCategory) ? p.category : 'Residency Life') as PostCategory,
+          title: p.title,
+          author: p.author_alias,
+          isAnonymous: p.is_anonymous,
+          timeAgo: timeAgo(p.created_at),
+          content: p.content,
+          likes: p.like_count,
+          comments: p.comment_count,
+          isLiked: p.is_liked,
+          commentsList: [],
+          dbComments: [],
+        })),
+      );
+    }
+    setLoading(false);
+  }, [isReal, userId]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   const filteredPosts = useMemo(() => {
     let result = selectedCategory === 'All' ? posts : posts.filter((p) => p.category === selectedCategory);
@@ -365,14 +435,25 @@ export default function PeerSupportScreen() {
   const detailPost = useMemo(() => (detailPostId ? posts.find((p) => p.id === detailPostId) ?? null : null), [detailPostId, posts]);
 
   const toggleLike = useCallback((id: string) => {
+    const post = posts.find((p) => p.id === id);
+    if (!post) return;
+    const nowLiked = !post.isLiked;
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
-        const nowLiked = !p.isLiked;
         return { ...p, isLiked: nowLiked, likes: nowLiked ? p.likes + 1 : p.likes - 1 };
       }),
     );
-  }, []);
+    if (isReal) apiToggleLike(id, userId!, post.isLiked);
+  }, [posts, isReal, userId]);
+
+  const loadComments = useCallback(async (postId: string) => {
+    if (!isReal) return;
+    const { comments } = await apiFetchComments(postId);
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, dbComments: comments } : p)),
+    );
+  }, [isReal]);
 
   const addComment = useCallback((id: string, text: string) => {
     setPosts((prev) =>
@@ -381,14 +462,24 @@ export default function PeerSupportScreen() {
         return { ...p, commentsList: [...p.commentsList, text] };
       }),
     );
-  }, []);
+    if (isReal) {
+      apiCreateComment(id, userId!, text, true).then(() => loadComments(id));
+    }
+  }, [isReal, userId, loadComments]);
 
   const handleFlag = useCallback((id: string) => {
     Alert.alert('Report Post', 'Are you sure you want to report this post to moderators?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', 'Thank you. A moderator will review this post.') },
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: () => {
+          if (isReal) apiCreateReport(id, userId!, 'Inappropriate content');
+          Alert.alert('Reported', 'Thank you. A moderator will review this post.');
+        },
+      },
     ]);
-  }, []);
+  }, [isReal, userId]);
 
   const handleMore = useCallback((id: string) => {
     Alert.alert('Post Options', undefined, [
@@ -398,7 +489,13 @@ export default function PeerSupportScreen() {
   }, [handleFlag]);
 
   const handleNewPost = useCallback(
-    (data: { title: string; content: string; category: PostCategory; isAnonymous: boolean }) => {
+    async (data: { title: string; content: string; category: PostCategory; isAnonymous: boolean }) => {
+      if (isReal) {
+        await apiCreatePost(userId!, data.title, data.content, data.category, data.isAnonymous);
+        setShowNewPost(false);
+        loadPosts();
+        return;
+      }
       const newPost: LocalPost = {
         id: `p-${Date.now()}`,
         category: data.category,
@@ -411,11 +508,12 @@ export default function PeerSupportScreen() {
         comments: 0,
         isLiked: false,
         commentsList: [],
+        dbComments: [],
       };
       setPosts((prev) => [newPost, ...prev]);
       setShowNewPost(false);
     },
-    [currentUser?.name],
+    [currentUser?.name, isReal, userId, loadPosts],
   );
 
   return (
@@ -462,7 +560,12 @@ export default function PeerSupportScreen() {
 
       {/* Posts */}
       <ScrollView contentContainerStyle={st.postsContainer} showsVerticalScrollIndicator={false}>
-        {filteredPosts.length === 0 && (
+        {loading && (
+          <View style={st.emptyState}>
+            <ActivityIndicator size="small" color={c.accent} />
+          </View>
+        )}
+        {!loading && filteredPosts.length === 0 && (
           <View style={st.emptyState}>
             <Ionicons name="chatbubbles-outline" size={36} color={c.textMuted} />
             <Text style={st.emptyText}>{searchQuery.length > 0 ? 'No posts match your search.' : 'No posts yet. Be the first!'}</Text>
@@ -495,6 +598,7 @@ export default function PeerSupportScreen() {
         onClose={() => setDetailPostId(null)}
         onToggleLike={() => { if (detailPostId) toggleLike(detailPostId); }}
         onAddComment={(text) => { if (detailPostId) addComment(detailPostId, text); }}
+        onLoadComments={() => { if (detailPostId) loadComments(detailPostId); }}
       />
     </SafeAreaView>
   );

@@ -41,6 +41,7 @@ export default function App() {
       if (!isMounted || !session?.user) return;
       const m = session.user.user_metadata ?? {};
       signIn({
+        id: session.user.id,
         name: typeof m.full_name === 'string' ? m.full_name : 'Wellness User',
         email: session.user.email ?? 'unknown@gmail.com',
         pgyYear: m.pgy_year ?? 'PGY-1',
@@ -59,6 +60,7 @@ export default function App() {
       if (event === 'SIGNED_IN' && session?.user) {
         const m = session.user.user_metadata ?? {};
         signIn({
+          id: session.user.id,
           name: typeof m.full_name === 'string' ? m.full_name : 'Wellness User',
           email: session.user.email ?? 'unknown@gmail.com',
           pgyYear: m.pgy_year ?? 'PGY-1',

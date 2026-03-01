@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User, Institution, PGYYear, Specialty, ActivityLog, ActivityCategory } from './types';
 
 interface QuickSignInPayload {
+  id?: string;
   name: string;
   email: string;
   pgyYear?: PGYYear;
@@ -22,6 +23,7 @@ interface AppState {
   updateCurrentUserPGY: (pgyYear: PGYYear) => void;
   updateCurrentUserSpecialty: (specialty: Specialty) => void;
   logActivity: (activityId: string, activityTitle: string, category: ActivityCategory, durationMinutes: number) => void;
+  hydrateActivityLogs: (logs: ActivityLog[]) => void;
   toggleDarkMode: () => void;
   signOut: () => void;
 }
@@ -34,13 +36,13 @@ export const useAppStore = create<AppState>((set) => ({
   activityLogs: [],
   isDarkMode: true,
 
-  signIn: ({ name, email, pgyYear = 'PGY-1', specialty = 'Internal Medicine', institution = null }) =>
+  signIn: ({ id, name, email, pgyYear = 'PGY-1', specialty = 'Internal Medicine', institution = null }) =>
     set({
       selectedInstitution: institution,
       isAuthenticated: true,
       hasCompletedOnboarding: true,
       currentUser: {
-        id: 'user-1',
+        id: id ?? `local-${Date.now()}`,
         name: name.trim(),
         role: 'resident',
         pgyYear,
@@ -114,6 +116,15 @@ export const useAppStore = create<AppState>((set) => ({
       return {
         activityLogs: newLogs,
         currentUser: { ...state.currentUser, sessionsCompleted, streak },
+      };
+    }),
+
+  hydrateActivityLogs: (logs) =>
+    set((state) => {
+      if (!state.currentUser) return { activityLogs: logs };
+      return {
+        activityLogs: logs,
+        currentUser: { ...state.currentUser, sessionsCompleted: logs.length },
       };
     }),
 

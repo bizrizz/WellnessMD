@@ -18,7 +18,9 @@ import { Typography } from '../components/theme/typography';
 import AppCard from '../components/AppCard';
 import { useAppStore } from '../store/appStore';
 import { getRoleDescription, PGYYear, PGY_YEARS, Specialty, SPECIALTIES } from '../store/types';
-import { signOut as signOutSupabase } from '../auth/authService';
+import { signOut as signOutSupabase, updateUserProfileMetadata } from '../auth/authService';
+import { isSupabaseConfigured } from '../supabase/client';
+import { fetchProfile, updateProfile } from '../supabase/api';
 
 const FREQUENCY_STEPS = 5;
 
@@ -48,23 +50,41 @@ export default function ProfileScreen() {
   const userEmail = currentUser?.email ?? '';
   const roleDesc = getRoleDescription(pgyYear, specialty);
 
-  const handleSaveName = () => {
+  const uid = currentUser?.id ?? null;
+  const isReal = isSupabaseConfigured && uid && !uid.startsWith('local-');
+
+  const handleSaveName = async () => {
     if (editableName.trim().length < 2) return;
     updateCurrentUserName(editableName);
     setShowEditNameModal(false);
+    if (isReal) {
+      updateProfile(uid!, { full_name: editableName.trim() });
+      updateUserProfileMetadata({ full_name: editableName.trim() });
+    }
   };
-  const handleSavePGY = () => {
+  const handleSavePGY = async () => {
     updateCurrentUserPGY(editablePGY);
     setShowEditPGYModal(false);
+    if (isReal) {
+      updateProfile(uid!, { pgy_year: editablePGY });
+      updateUserProfileMetadata({ pgy_year: editablePGY });
+    }
   };
-  const handleSaveSpecialty = () => {
+  const handleSaveSpecialty = async () => {
     updateCurrentUserSpecialty(editableSpecialty);
     setShowEditSpecialtyModal(false);
+    if (isReal) {
+      updateProfile(uid!, { specialty: editableSpecialty });
+      updateUserProfileMetadata({ specialty: editableSpecialty });
+    }
   };
   const handleSaveQuietHours = () => {
     setQuietHoursStart(editableQuietStart);
     setQuietHoursEnd(editableQuietEnd);
     setShowQuietHoursModal(false);
+    if (isReal) {
+      updateProfile(uid!, { reminder_time_preference: `${editableQuietStart}-${editableQuietEnd}` });
+    }
   };
   const handleSignOut = async () => {
     await signOutSupabase();

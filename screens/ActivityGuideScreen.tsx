@@ -16,6 +16,8 @@ import { Typography } from '../components/theme/typography';
 import { sampleActivities } from '../store/mockData';
 import { ActivityStep } from '../store/types';
 import { useAppStore } from '../store/appStore';
+import { isSupabaseConfigured } from '../supabase/client';
+import { insertActivityLog } from '../supabase/api';
 
 type ActivityGuideRouteProp = RouteProp<RootStackParamList, 'ActivityGuide'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
@@ -82,9 +84,15 @@ export default function ActivityGuideScreen() {
 
   const togglePlayPause = () => setIsPlaying((p) => !p);
 
+  const currentUser = useAppStore((st) => st.currentUser);
+
   const finishActivity = () => {
     if (activity) {
       logActivity(activity.id, activity.title, activity.category, activity.duration);
+      const uid = currentUser?.id;
+      if (isSupabaseConfigured && uid && !uid.startsWith('local-')) {
+        insertActivityLog(uid, null, activity.duration);
+      }
     }
     navigation.goBack();
   };
