@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, Institution, PGYYear, Specialty, ActivityLog, ActivityCategory, MoodLog, MoodValue } from './types';
+
+export const THEME_STORAGE_KEY = 'wellness-dark-mode';
 
 interface QuickSignInPayload {
   id?: string;
@@ -30,6 +33,7 @@ interface AppState {
   logMood: (mood: MoodValue) => void;
   hydrateMoodLogs: (logs: MoodLog[]) => void;
   toggleDarkMode: () => void;
+  setDarkMode: (value: boolean) => void;
   signOut: () => void;
 }
 
@@ -153,7 +157,17 @@ export const useAppStore = create<AppState>((set) => ({
 
   hydrateMoodLogs: (logs) => set({ moodLogs: logs }),
 
-  toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
+  toggleDarkMode: () =>
+    set((state) => {
+      const next = !state.isDarkMode;
+      AsyncStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      return { isDarkMode: next };
+    }),
+
+  setDarkMode: (value) => {
+    AsyncStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(value)).catch(() => {});
+    set({ isDarkMode: value });
+  },
 
   signOut: () =>
     set({

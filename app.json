@@ -26,7 +26,20 @@
       }
     },
     "plugins": [
-      "expo-asset"
-    ]
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#4ADE80",
+          "defaultChannel": "wellness-reminders"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8b8aacd1-c9aa-4a11-9866-19241b5fc0f7"
+      }
+    }
   }
 }

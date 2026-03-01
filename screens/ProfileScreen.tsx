@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,8 @@ import { useAppStore } from '../store/appStore';
 import { getRoleDescription, PGYYear, PGY_YEARS, Specialty, SPECIALTIES } from '../store/types';
 import { signOut as signOutSupabase, updateUserProfileMetadata } from '../auth/authService';
 import { isSupabaseConfigured } from '../supabase/client';
-import { fetchProfile, updateProfile, updateProfileAvatar, uploadAvatar } from '../supabase/api';
+import { fetchProfile, updateProfile, updateProfileAvatar, uploadAvatar, savePushToken, removeAllPushTokensForUser } from '../supabase/api';
+import { registerForPushNotificationsAsync } from '../utils/pushNotifications';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const activityLogs = useAppStore((s) => s.activityLogs);
   const moodLogs = useAppStore((s) => s.moodLogs);
   const [smartAlertsEnabled, setSmartAlertsEnabled] = useState(true);
+  const [smartAlertsLoading, setSmartAlertsLoading] = useState(false);
   const [frequencyIndex, setFrequencyIndex] = useState(3);
   const [quietHoursStart, setQuietHoursStart] = useState('22:00');
   const [quietHoursEnd, setQuietHoursEnd] = useState('06:00');
@@ -59,6 +61,14 @@ export default function ProfileScreen() {
 
   const uid = currentUser?.id ?? null;
   const isReal = isSupabaseConfigured && uid && !uid.startsWith('local-');
+
+  useEffect(() => {
+    if (!isReal) return;
+    fetchProfile(uid!).then(({ data }) => {
+      if (data?.smart_alerts_enabled === false) setSmartAlertsEnabled(false);
+      else if (data?.smart_alerts_enabled === true) setSmartAlertsEnabled(true);
+    });
+  }, [uid, isReal]);
 
   const handleSaveName = async () => {
     if (editableName.trim().length < 2) return;
@@ -224,7 +234,37 @@ export default function ProfileScreen() {
               right={
                 <Switch
                   value={smartAlertsEnabled}
-                  onValueChange={(val) => { setSmartAlertsEnabled(val); Alert.alert('Notifications', val ? 'Enabled' : 'Disabled'); }}
+                  onValueChange={async (val) => {
+                    setSmartAlertsEnabled(val);
+                    if (!isReal) return;
+                    setSmartAlertsLoading(true);
+                    try {
+                      if (val) {
+                        const token = await registerForPushNotificationsAsync();
+                        if (token) {
+                          const { error: saveErr } = await savePushToken(uid!, token);
+                          if (saveErr) throw saveErr;
+                          const { error: updateErr } = await updateProfile(uid!, { smart_alerts_enabled: true });
+                          if (updateErr) throw updateErr;
+                        } else {
+                          setSmartAlertsEnabled(false);
+                          Alert.alert('Notifications', 'Permission denied. Enable in Settings.');
+                        }
+                      } else {
+                        const { error: removeErr } = await removeAllPushTokensForUser(uid!);
+                        if (removeErr) throw removeErr;
+                        const { error: updateErr } = await updateProfile(uid!, { smart_alerts_enabled: false });
+                        if (updateErr) throw updateErr;
+                      }
+                    } catch (e) {
+                      setSmartAlertsEnabled(!val);
+                      const msg = e instanceof Error ? e.message : String(e);
+                      Alert.alert('Error', `Could not update notifications: ${msg}`);
+                    } finally {
+                      setSmartAlertsLoading(false);
+                    }
+                  }}
+                  disabled={smartAlertsLoading}
                   trackColor={{ false: c.cardBorder, true: c.accent }}
                   thumbColor="#FFF"
                 />

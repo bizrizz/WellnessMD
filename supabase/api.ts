@@ -366,6 +366,33 @@ export async function fetchTodaysMood(userId: string): Promise<{ mood: MoodValue
   return { mood: data.mood as MoodValue, error: null };
 }
 
+// ===== PUSH TOKENS =====
+
+export async function savePushToken(userId: string, expoPushToken: string) {
+  if (!isSupabaseConfigured) return { error: null };
+  const { error } = await supabase.from('user_push_tokens').upsert(
+    { user_id: userId, expo_push_token: expoPushToken },
+    { onConflict: 'user_id,expo_push_token' }
+  );
+  return { error };
+}
+
+export async function removePushToken(userId: string, expoPushToken: string) {
+  if (!isSupabaseConfigured) return { error: null };
+  const { error } = await supabase
+    .from('user_push_tokens')
+    .delete()
+    .eq('user_id', userId)
+    .eq('expo_push_token', expoPushToken);
+  return { error };
+}
+
+export async function removeAllPushTokensForUser(userId: string) {
+  if (!isSupabaseConfigured) return { error: null };
+  const { error } = await supabase.from('user_push_tokens').delete().eq('user_id', userId);
+  return { error };
+}
+
 // ===== RESOURCES =====
 
 export async function fetchResources() {

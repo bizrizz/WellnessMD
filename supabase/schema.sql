@@ -50,6 +50,7 @@ create table if not exists profiles (
 
 -- Add avatar_url if upgrading existing DB (safe to run multiple times)
 alter table profiles add column if not exists avatar_url text;
+alter table profiles add column if not exists smart_alerts_enabled boolean default true;
 
 -- Storage: Create bucket "avatars" in Supabase Dashboard > Storage > New bucket.
 -- Set to Public. Run the storage policies below in SQL Editor (see end of file).
@@ -294,6 +295,7 @@ create policy "Anyone can read resources" on resources for select using (true);
 -- PUSH TOKENS
 create policy "Users read own tokens"   on user_push_tokens for select using (auth.uid() = user_id);
 create policy "Users insert own tokens" on user_push_tokens for insert with check (auth.uid() = user_id);
+create policy "Users update own tokens" on user_push_tokens for update using (auth.uid() = user_id);
 create policy "Users delete own tokens" on user_push_tokens for delete using (auth.uid() = user_id);
 
 
