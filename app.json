@@ -34,7 +34,8 @@
           "color": "#4ADE80",
           "defaultChannel": "wellness-reminders"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

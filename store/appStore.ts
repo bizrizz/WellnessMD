@@ -16,6 +16,7 @@ interface QuickSignInPayload {
 
 interface AppState {
   isAuthenticated: boolean;
+  oauthFlowInProgress: boolean;
   hasCompletedOnboarding: boolean;
   currentUser: User | null;
   selectedInstitution: Institution | null;
@@ -24,6 +25,7 @@ interface AppState {
   isDarkMode: boolean;
 
   signIn: (payload: QuickSignInPayload) => void;
+  setOauthFlowInProgress: (value: boolean) => void;
   updateCurrentUserName: (name: string) => void;
   updateCurrentUserPGY: (pgyYear: PGYYear) => void;
   updateCurrentUserSpecialty: (specialty: Specialty) => void;
@@ -39,6 +41,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   isAuthenticated: false,
+  oauthFlowInProgress: false,
   hasCompletedOnboarding: false,
   currentUser: null,
   selectedInstitution: null,
@@ -67,6 +70,8 @@ export const useAppStore = create<AppState>((set) => ({
         goals: [],
       },
     }),
+
+  setOauthFlowInProgress: (value) => set({ oauthFlowInProgress: value }),
 
   updateCurrentUserName: (name) =>
     set((state) => {

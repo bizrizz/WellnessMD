@@ -113,6 +113,7 @@ export default function App() {
         signOut();
       }
       if (event === 'SIGNED_IN' && session?.user) {
+        if (useAppStore.getState().oauthFlowInProgress) return;
         const m = session.user.user_metadata ?? {};
         fetchProfile(session.user.id).then(async ({ data: profile }) => {
           if (!isMounted) return;

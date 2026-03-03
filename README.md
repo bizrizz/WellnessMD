@@ -14,6 +14,7 @@ A wellness app built for medical residents — micro-interventions, community su
 ## Features
 
 - **Email authentication** — sign up or sign in with email and password
+- **Google OAuth** — sign in with Google (one-tap when Supabase provider enabled)
 - **Micro-interventions** — guided breathing, stretching, and mindfulness sessions with step-by-step timers
 - **Activity logging** — tracks completed sessions, streak, and total minutes (synced to Supabase); analytics (streak, sessions, min total) shown in Profile
 - **Daily mood check-in** — Happy, Calm, Relax, Focus (one per day, persisted to Supabase)
@@ -96,13 +97,15 @@ wellnessapp/
    ```
    Fill in your Supabase project URL and anon key.
 
-4. **Push notifications (optional):** Run `npx eas init` to link an EAS project, or add `EXPO_PUBLIC_EAS_PROJECT_ID` to `.env`. The project ID is also in `app.json` → `extra.eas.projectId`.
+4. **Google OAuth (optional):** Supabase Dashboard → Auth → URL Configuration → add `wellnessmd://auth/callback` (or your `EXPO_PUBLIC_AUTH_REDIRECT_URL`) to **Redirect URLs**. Ensure Google provider is enabled under Auth → Providers.
 
-5. Set up the database — Supabase Dashboard → **SQL Editor** → **New Query** → paste `supabase/schema.sql` → **Run**. Then run `supabase/migrations/20250301000000_add_smart_alerts.sql` for push (adds `smart_alerts_enabled` to profiles).
+5. **Push notifications (optional):** Run `npx eas init` to link an EAS project, or add `EXPO_PUBLIC_EAS_PROJECT_ID` to `.env`. The project ID is also in `app.json` → `extra.eas.projectId`.
 
-6. **Profile photos:** Create `avatars` bucket: Dashboard → **Storage** → **New bucket** → name `avatars` → **Public** → Create. The storage policies are already in `schema.sql` (run the full file).
+6. Set up the database — Supabase Dashboard → **SQL Editor** → **New Query** → paste `supabase/schema.sql` → **Run**. Then run `supabase/migrations/20250301000000_add_smart_alerts.sql` for push (adds `smart_alerts_enabled` to profiles).
 
-7. Start the app:
+7. **Profile photos:** Create `avatars` bucket: Dashboard → **Storage** → **New bucket** → name `avatars` → **Public** → Create. The storage policies are already in `schema.sql` (run the full file).
+
+8. Start the app:
    ```bash
    npx expo start
    ```
@@ -242,6 +245,7 @@ Smart alerts in Profile register the device for push. When enabled, the token is
 |----------|-------------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `EXPO_PUBLIC_AUTH_REDIRECT_URL` | OAuth redirect (e.g. `wellnessmd://auth/callback`). Add to Supabase → Auth → URL Configuration → Redirect URLs |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project UUID (optional; also in `app.json` after `eas init`) |
 
 ## License
