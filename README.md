@@ -155,7 +155,7 @@ Run the full `schema.sql` once in Supabase SQL Editor. It creates tables, RLS, t
 | `posts` | user_id, title, content, category, is_anonymous, is_flagged | Read all; write own |
 | `post_likes` | post_id, user_id | Read all; write own |
 | `comments` | post_id, user_id, content, is_anonymous | Read all; write own |
-| `reports` | post_id, reporter_id, reason | Insert own only |
+| `reports i deleted this completly` | post_id, reporter_id, reason | Insert own only |
 | `resources` | title, category, description, link | Read-only (admin seed) |
 | `user_push_tokens` | user_id, expo_push_token | Own data only |
 | `profiles.smart_alerts_enabled` | boolean (default true) | Toggle in Profile; controls push registration |
