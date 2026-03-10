@@ -23,6 +23,7 @@ import { signOut as signOutSupabase, updateUserProfileMetadata } from '../auth/a
 import { isSupabaseConfigured } from '../supabase/client';
 import { fetchProfile, updateProfile, updateProfileAvatar, uploadAvatar, savePushToken, removeAllPushTokensForUser } from '../supabase/api';
 import { registerForPushNotificationsAsync } from '../utils/pushNotifications';
+import { validateName, validateTimeHHMM } from '../utils/validation';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
@@ -71,12 +72,17 @@ export default function ProfileScreen() {
   }, [uid, isReal]);
 
   const handleSaveName = async () => {
-    if (editableName.trim().length < 2) return;
-    updateCurrentUserName(editableName);
+    const check = validateName(editableName);
+    if (!check.valid) {
+      Alert.alert('Invalid name', check.error);
+      return;
+    }
+    const trimmed = editableName.trim();
+    updateCurrentUserName(trimmed);
     setShowEditNameModal(false);
     if (isReal) {
-      updateProfile(uid!, { full_name: editableName.trim() });
-      updateUserProfileMetadata({ full_name: editableName.trim() });
+      updateProfile(uid!, { full_name: trimmed });
+      updateUserProfileMetadata({ full_name: trimmed });
     }
   };
   const handleSavePGY = async () => {
@@ -96,11 +102,21 @@ export default function ProfileScreen() {
     }
   };
   const handleSaveQuietHours = () => {
-    setQuietHoursStart(editableQuietStart);
-    setQuietHoursEnd(editableQuietEnd);
+    const startCheck = validateTimeHHMM(editableQuietStart);
+    const endCheck = validateTimeHHMM(editableQuietEnd);
+    if (!startCheck.valid) {
+      Alert.alert('Invalid time', `Start: ${startCheck.error}`);
+      return;
+    }
+    if (!endCheck.valid) {
+      Alert.alert('Invalid time', `End: ${endCheck.error}`);
+      return;
+    }
+    setQuietHoursStart(editableQuietStart.trim());
+    setQuietHoursEnd(editableQuietEnd.trim());
     setShowQuietHoursModal(false);
     if (isReal) {
-      updateProfile(uid!, { reminder_time_preference: `${editableQuietStart}-${editableQuietEnd}` });
+      updateProfile(uid!, { reminder_time_preference: `${editableQuietStart.trim()}-${editableQuietEnd.trim()}` });
     }
   };
   const handleSignOut = async () => {
@@ -334,7 +350,7 @@ export default function ProfileScreen() {
 
       {/* --- Modals --- */}
       <ModalWrapper st={st} visible={showEditNameModal} onClose={() => setShowEditNameModal(false)} title="Edit name">
-        <TextInput style={st.modalInput} value={editableName} onChangeText={setEditableName} placeholder="Name" placeholderTextColor={c.textMuted} autoCapitalize="words" />
+        <TextInput style={st.modalInput} value={editableName} onChangeText={setEditableName} placeholder="Name" placeholderTextColor={c.textMuted} autoCapitalize="words" maxLength={100} />
         <ModalButtons st={st} onCancel={() => setShowEditNameModal(false)} onSave={handleSaveName} />
       </ModalWrapper>
 

@@ -20,6 +20,7 @@ import { useAppStore } from '../store/appStore';
 import { updateUserProfileMetadata, signUpWithEmail, signInWithEmail, signInWithGoogle } from '../auth/authService';
 import { isSupabaseConfigured } from '../supabase/client';
 import { fetchProfile, updateProfile } from '../supabase/api';
+import { validateEmail, validatePassword, validateName } from '../utils/validation';
 
 type Step = 'choose' | 'email' | 'profile';
 
@@ -131,6 +132,23 @@ export default function InstitutionalSignInScreen() {
     if (!canSubmitEmail || isSubmitting) return;
     if (!isSupabaseConfigured) {
       setStatusText('Supabase not configured.');
+      return;
+    }
+    if (isSignUp) {
+      const nameCheck = validateName(fullName);
+      if (!nameCheck.valid) {
+        setStatusText(nameCheck.error);
+        return;
+      }
+    }
+    const emailCheck = validateEmail(normalizedEmail);
+    if (!emailCheck.valid) {
+      setStatusText(emailCheck.error);
+      return;
+    }
+    const passwordCheck = validatePassword(password, { forSignUp: isSignUp });
+    if (!passwordCheck.valid) {
+      setStatusText(passwordCheck.error);
       return;
     }
     setIsSubmitting(true);
@@ -287,6 +305,7 @@ export default function InstitutionalSignInScreen() {
                     onChangeText={setFullName}
                     autoCapitalize="words"
                     autoCorrect={false}
+                    maxLength={100}
                   />
                 </>
               )}
@@ -301,6 +320,7 @@ export default function InstitutionalSignInScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                maxLength={254}
               />
 
               <Text style={s.label}>Password</Text>
@@ -312,6 +332,7 @@ export default function InstitutionalSignInScreen() {
                 onChangeText={setPassword}
                 secureTextEntry
                 autoCapitalize="none"
+                maxLength={128}
               />
 
               {statusText.length > 0 && <Text style={s.statusText}>{statusText}</Text>}

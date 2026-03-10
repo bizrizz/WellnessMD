@@ -30,6 +30,7 @@ import {
   createComment as apiCreateComment,
   CommentRow,
 } from '../supabase/api';
+import { validatePostTitle, validatePostContent, validateComment } from '../utils/validation';
 import {
   POST_CATEGORIES,
   PostCategory,
@@ -162,9 +163,12 @@ function PostDetailModal({
   const totalComments = post.comments + post.commentsList.length + post.dbComments.length;
 
   const handleSend = () => {
-    const trimmed = commentText.trim();
-    if (trimmed.length === 0) return;
-    onAddComment(trimmed);
+    const check = validateComment(commentText);
+    if (!check.valid) {
+      Alert.alert('Invalid comment', check.error);
+      return;
+    }
+    onAddComment(commentText.trim());
     setCommentText('');
   };
 
@@ -259,6 +263,7 @@ function PostDetailModal({
               onChangeText={setCommentText}
               returnKeyType="send"
               onSubmitEditing={handleSend}
+              maxLength={1000}
             />
             <TouchableOpacity onPress={handleSend} disabled={commentText.trim().length === 0} style={{ opacity: commentText.trim().length > 0 ? 1 : 0.3 }}>
               <Ionicons name="send" size={20} color={c.accent} />
@@ -289,7 +294,16 @@ function NewPostModal({
   const canSubmit = title.trim().length > 0 && content.trim().length > 0;
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
+    const titleCheck = validatePostTitle(title);
+    if (!titleCheck.valid) {
+      Alert.alert('Invalid title', titleCheck.error);
+      return;
+    }
+    const contentCheck = validatePostContent(content);
+    if (!contentCheck.valid) {
+      Alert.alert('Invalid content', contentCheck.error);
+      return;
+    }
     onSubmit({ title: title.trim(), content: content.trim(), category: selectedCategory, isAnonymous });
     setTitle('');
     setContent('');
@@ -342,7 +356,7 @@ function NewPostModal({
 
             <View style={st.fieldGroup}>
               <Text style={st.fieldLabel}>Title</Text>
-              <TextInput style={st.textInput} placeholder="What's on your mind?" placeholderTextColor={c.textMuted} value={title} onChangeText={setTitle} />
+              <TextInput style={st.textInput} placeholder="What's on your mind?" placeholderTextColor={c.textMuted} value={title} onChangeText={setTitle} maxLength={200} />
             </View>
 
             <View style={st.fieldGroup}>
@@ -355,6 +369,7 @@ function NewPostModal({
                 onChangeText={setContent}
                 multiline
                 textAlignVertical="top"
+                maxLength={2000}
               />
             </View>
 
